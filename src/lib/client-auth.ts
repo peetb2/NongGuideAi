@@ -2,6 +2,9 @@ export interface UserSessionData {
   id: string;
   email: string;
   creditBalance: number;
+  role?: string;
+  isActive?: boolean;
+  isAdmin?: boolean;
 }
 
 const STORAGE_KEY = "matcha_user";

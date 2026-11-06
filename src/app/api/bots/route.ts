@@ -10,6 +10,7 @@ const botCreateSchema = z.object({
   allowedDomains: z.union([z.string(), z.array(z.string())]).default("*").transform((v) => Array.isArray(v) ? v.join(",") : v),
   websiteUrl: z.string().optional().nullable().or(z.literal("")),
   lastCrawledAt: z.union([z.string(), z.date()]).optional().nullable().transform((v) => (v ? new Date(v) : null)),
+  widgetConfig: z.string().optional().nullable(),
   isActive: z.boolean().default(true),
 });
 

@@ -13,6 +13,9 @@ export async function GET() {
       id: user.id,
       email: user.email,
       creditBalance: user.creditBalance,
+      role: user.role,
+      isActive: user.isActive,
+      isAdmin: user.isAdmin,
       createdAt: user.createdAt,
     },
   });

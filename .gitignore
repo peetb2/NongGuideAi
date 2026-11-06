@@ -38,4 +38,6 @@ next-env.d.ts
 
 # Evaluation & benchmarks (excluded)
 BERTSCORE_SUMMARY.txt
+SUPPORT_AGENT_BERTSCORE.txt
+*BERTSCORE*.txt
 scripts/

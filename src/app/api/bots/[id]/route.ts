@@ -10,8 +10,43 @@ const botUpdateSchema = z.object({
   allowedDomains: z.union([z.string(), z.array(z.string())]).optional().transform((v) => (v ? (Array.isArray(v) ? v.join(",") : v) : undefined)),
   websiteUrl: z.string().optional().nullable().or(z.literal("")),
   lastCrawledAt: z.union([z.string(), z.date()]).optional().nullable().transform((v) => (v ? new Date(v) : undefined)),
+  widgetConfig: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
 });
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const session = await getAuthSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const bot = await prisma.bot.findFirst({
+    where: { id: params.id, userId: session.userId },
+    include: {
+      apiKeys: {
+        select: {
+          id: true,
+          keyPrefix: true,
+          type: true,
+          rateLimitPerMinute: true,
+          createdAt: true,
+        },
+      },
+      _count: {
+        select: { usageLogs: true, knowledgeDocs: true },
+      },
+    },
+  });
+
+  if (!bot) {
+    return NextResponse.json({ error: "Bot not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ bot });
+}
 
 export async function PUT(
   req: NextRequest,

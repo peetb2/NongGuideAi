@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import { prisma } from "./prisma";
+import { isAdminUser } from "./admin-roles";
 
 const SECRET_KEY = new TextEncoder().encode(
   process.env.NEXTAUTH_SECRET || "matchachatbot-secret-key-change-in-production-min-32"
@@ -52,5 +53,30 @@ export async function getCurrentUser() {
     },
   });
 
-  return user;
+  if (!user) return null;
+
+  let role = "USER";
+  let isActive = true;
+  try {
+    const rawUsers: any = await prisma.$queryRawUnsafe(
+      "SELECT role, isActive FROM users WHERE id = ? LIMIT 1",
+      user.id
+    );
+    if (rawUsers && rawUsers.length > 0) {
+      if (rawUsers[0].role) role = rawUsers[0].role;
+      if (rawUsers[0].isActive !== undefined && rawUsers[0].isActive !== null) {
+        isActive = Boolean(rawUsers[0].isActive);
+      }
+    }
+  } catch {
+    // fallback
+  }
+
+  const userWithRole = { ...user, role, isActive };
+  const isAdmin = isAdminUser(userWithRole);
+
+  return {
+    ...userWithRole,
+    isAdmin,
+  };
 }

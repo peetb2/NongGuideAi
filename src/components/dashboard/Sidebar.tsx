@@ -16,10 +16,15 @@ function SidebarNavContent({ mobileOpen, onCloseMobile }: SidebarProps) {
   const router = useRouter();
   const tabParam = searchParams.get("tab");
 
-  const [currentUser, setCurrentUser] = React.useState<UserSessionData | null>(() => getCachedUser());
+  // Start as null on both server and client to keep hydration consistent;
+  // the localStorage cache is read only after mount.
+  const [currentUser, setCurrentUser] = React.useState<UserSessionData | null>(null);
 
   React.useEffect(() => {
-    // Initial fetch to sync real user state
+    // Show cached user immediately after mount, then sync real user state
+    const cached = getCachedUser();
+    if (cached) setCurrentUser(cached);
+
     fetchCurrentUser().then((user) => {
       if (user) setCurrentUser(user);
     });
@@ -45,10 +50,12 @@ function SidebarNavContent({ mobileOpen, onCloseMobile }: SidebarProps) {
   };
 
   const isBotsActive = pathname.startsWith("/dashboard/bots");
+  const isCustomizerActive = pathname.startsWith("/dashboard/widget-customizer");
   const isKeysActive = pathname.startsWith("/dashboard/keys") || pathname.startsWith("/dashboard/api-keys");
   const isLogsActive = pathname.startsWith("/dashboard/analytics") || (pathname === "/dashboard" && tabParam === "logs");
   const isBillingActive = pathname === "/dashboard" && tabParam === "billing";
-  const isDashboardActive = pathname === "/dashboard" && !isLogsActive && !isBillingActive;
+  const isAdminUsersActive = pathname.startsWith("/dashboard/admin/users");
+  const isDashboardActive = pathname === "/dashboard" && !isLogsActive && !isBillingActive && !isAdminUsersActive;
 
   const avatarLetter = (currentUser?.email ? currentUser.email.charAt(0) : "A").toUpperCase();
   const creditDisplay = currentUser ? `${currentUser.creditBalance ?? 0} เครดิต` : "91 เครดิต";
@@ -150,7 +157,40 @@ function SidebarNavContent({ mobileOpen, onCloseMobile }: SidebarProps) {
                 <span>จัดการบอท</span>
               </Link>
 
-              {/* 3. คีย์ API */}
+              {/* 3. ปรับแต่งวิดเจ็ต (Visual Widget Customizer) */}
+              <Link
+                href="/dashboard/widget-customizer"
+                onClick={onCloseMobile}
+                className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl font-medium text-[13.5px] transition-colors ${
+                  isCustomizerActive
+                    ? "text-white bg-[#435548] shadow-sm"
+                    : "text-[#A3B8A8] hover:text-white hover:bg-[#344638]"
+                }`}
+              >
+                <svg
+                  className={`w-4 h-4 shrink-0 ${
+                    isCustomizerActive ? "text-emerald-200" : ""
+                  }`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M12 21a9 9 0 100-18 9 9 0 000 18z"
+                    strokeWidth="2"
+                  />
+                  <path
+                    d="M12 3a9 9 0 019 9c0 2.2-1.8 4-4 4h-2a2 2 0 00-2 2c0 1.1-.9 2-2 2a9 9 0 01-1-17z"
+                    strokeWidth="2"
+                  />
+                  <circle cx="7.5" cy="10.5" r="1.25" fill="currentColor" />
+                  <circle cx="12" cy="7.5" r="1.25" fill="currentColor" />
+                  <circle cx="16.5" cy="10.5" r="1.25" fill="currentColor" />
+                </svg>
+                <span>ปรับแต่งวิดเจ็ต</span>
+              </Link>
+
+              {/* 4. คีย์ API */}
               <Link
                 href="/dashboard/keys"
                 onClick={onCloseMobile}
@@ -231,6 +271,43 @@ function SidebarNavContent({ mobileOpen, onCloseMobile }: SidebarProps) {
               </Link>
             </nav>
           </div>
+
+          {/* Admin Navigation Section */}
+          {currentUser?.isAdmin && (
+            <div className="px-3 pt-5">
+              <div className="px-3 pb-2 text-[11px] font-semibold text-[#A3B8A8]/60 tracking-wider uppercase font-mono">
+                ADMIN PANEL
+              </div>
+              <nav className="space-y-1.5">
+                <Link
+                  href="/dashboard/admin/users"
+                  onClick={onCloseMobile}
+                  className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl font-medium text-[13.5px] transition-colors ${
+                    isAdminUsersActive
+                      ? "text-white bg-[#435548] shadow-sm"
+                      : "text-[#A3B8A8] hover:text-white hover:bg-[#344638]"
+                  }`}
+                >
+                  <svg
+                    className={`w-4 h-4 shrink-0 ${
+                      isAdminUsersActive ? "text-emerald-200" : ""
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                    />
+                  </svg>
+                  <span>จัดการผู้ใช้งาน</span>
+                </Link>
+              </nav>
+            </div>
+          )}
         </div>
 
         {/* User Profile Footer Area */}

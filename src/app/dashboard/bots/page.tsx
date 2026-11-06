@@ -67,6 +67,10 @@ export default function BotListPage() {
   // Syncing state
   const [syncingBotId, setSyncingBotId] = useState<string | null>(null);
 
+  // Delete Bot Confirmation State
+  const [botToDelete, setBotToDelete] = useState<BotItem | null>(null);
+  const [isDeletingBot, setIsDeletingBot] = useState(false);
+
   // Modal Upload Form State (Files vs Website URL)
   const [modalUploadMode, setModalUploadMode] = useState<"files" | "crawl">("files");
   const [uploadTitle, setUploadTitle] = useState("");
@@ -500,6 +504,27 @@ export default function BotListPage() {
   };
 
   // Filtering bots
+  const handleConfirmDeleteBot = async () => {
+    if (!botToDelete || isDeletingBot) return;
+    setIsDeletingBot(true);
+    try {
+      const res = await fetch(`/api/bots/${botToDelete.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setBotsData((prev) => prev.filter((b) => b.id !== botToDelete.id));
+        if (managingBot?.id === botToDelete.id) setManagingBot(null);
+        showToast(`ลบบอท "${botToDelete.name}" เรียบร้อยแล้ว`);
+        setBotToDelete(null);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.error || "ไม่สามารถลบบอทได้");
+      }
+    } catch {
+      showToast("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
+    } finally {
+      setIsDeletingBot(false);
+    }
+  };
+
   const filteredBots = useMemo(() => {
     return botsData.filter((bot) => {
       const matchSearch =
@@ -715,20 +740,40 @@ export default function BotListPage() {
                   </div>
 
                   {/* Knowledge Stats & Actions */}
-                  <div className="pt-3 border-t border-borderLight flex items-center justify-between">
+                  <div className="pt-3 border-t border-borderLight flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 text-xs text-[#385241] font-mono font-medium">
                       <BookOpen className="w-3.5 h-3.5 text-[#4E6955]" />
-                      <span>{bot.knowledgeCount || 0} เอกสารในคลัง</span>
+                      <span>{bot.knowledgeCount || 0} เอกสาร</span>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleOpenKnowledgeModal(bot)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-borderLight hover:border-[#4E6955] text-xs font-semibold text-textMain hover:text-[#4E6955] bg-white transition shadow-2xs cursor-pointer active:scale-95"
-                    >
-                      <span>จัดการคลังความรู้</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={`/dashboard/widget-customizer?botId=${bot.id}`}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#EBF3EE] hover:bg-[#DCECE1] text-[#385241] text-xs font-semibold transition shadow-2xs"
+                        title="ปรับแต่งธีมและสีวิดเจ็ต"
+                      >
+                        <span>แต่งวิดเจ็ต</span>
+                      </Link>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenKnowledgeModal(bot)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-borderLight hover:border-[#4E6955] text-xs font-semibold text-textMain hover:text-[#4E6955] bg-white transition shadow-2xs cursor-pointer active:scale-95"
+                      >
+                        <span>คลังความรู้</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setBotToDelete(bot)}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-xl border border-borderLight text-slate-400 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 bg-white transition shadow-2xs cursor-pointer active:scale-95"
+                        title="ลบบอท"
+                        aria-label={`ลบบอท ${bot.name}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -736,6 +781,64 @@ export default function BotListPage() {
           )}
         </div>
       </main>
+
+      {/* DELETE BOT CONFIRMATION MODAL */}
+      {botToDelete && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs"
+          onClick={() => !isDeletingBot && setBotToDelete(null)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-borderLight p-6 space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-textMain">ลบบอทนี้ใช่หรือไม่?</h3>
+                <p className="text-xs text-textMuted mt-1 leading-relaxed">
+                  คุณกำลังจะลบ <span className="font-semibold text-textMain break-words">"{botToDelete.name}"</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-[11.5px] text-rose-800 leading-relaxed">
+              การดำเนินการนี้ไม่สามารถย้อนกลับได้ ข้อมูลต่อไปนี้จะถูกลบถาวร:
+              <ul className="list-disc pl-5 mt-1 space-y-0.5">
+                <li>เอกสารในคลังความรู้ ({botToDelete.knowledgeCount || 0} เอกสาร)</li>
+                <li>API Keys ทั้งหมดของบอทนี้ (วิดเจ็ตบนเว็บไซต์จะหยุดทำงาน)</li>
+                <li>ประวัติการใช้งานและสถิติ</li>
+              </ul>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setBotToDelete(null)}
+                disabled={isDeletingBot}
+                className="px-4 py-2 rounded-xl border border-borderLight bg-white text-xs font-semibold text-textMain hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteBot}
+                disabled={isDeletingBot}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs transition cursor-pointer disabled:opacity-60"
+              >
+                {isDeletingBot ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                <span>{isDeletingBot ? "กำลังลบ..." : "ลบบอทถาวร"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* REAL KNOWLEDGE BASE MANAGEMENT MODAL */}
       {managingBot && (

@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { verifyApiKey, isDomainAllowed } from "@/lib/api-keys";
+import { verifyApiKey } from "@/lib/api-keys";
 import { prisma } from "@/lib/prisma";
 import { generateEmbedding, retrieveTopKChunks, synthesizeRagPrompt } from "@/lib/rag-engine";
 
 // Zod schema for payload validation
 const chatRequestSchema = z.object({
-  publicKey: z.string().min(1, "publicKey is required"),
+  publicKey: z.string().optional(),
+  botKey: z.string().optional(),
+  botId: z.string().optional(),
   message: z.string().min(1, "message cannot be empty").max(4000, "message is too long"),
   sessionId: z.string().optional(),
+  stream: z.boolean().optional(),
 });
 
 // Helper for CORS response headers
@@ -49,10 +52,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { publicKey, message } = validationResult.data;
+    const { publicKey, botKey, botId, message } = validationResult.data;
+    const rawKey = publicKey || botKey || jsonBody.publicKey || jsonBody.botKey || "";
+    const isStreamRequested = Boolean(
+      validationResult.data.stream === true ||
+      jsonBody.stream === true ||
+      req.nextUrl.searchParams.get("stream") === "true" ||
+      req.headers.get("accept")?.includes("text/event-stream")
+    );
 
     // 2. Validate API key against DB & active status
-    const keyVerification = await verifyApiKey(publicKey, { originDomain: originHeader });
+    const keyVerification = await verifyApiKey(rawKey, {
+      originDomain: originHeader,
+      botId: botId || jsonBody.botId,
+    });
     if (!keyVerification.valid) {
       const statusCode = keyVerification.errorCode === "DOMAIN_NOT_ALLOWED" ? 403 : 401;
       return NextResponse.json(
@@ -82,12 +95,10 @@ export async function POST(req: NextRequest) {
     const retrievedChunks = await retrieveTopKChunks(bot.id, queryEmbedding, 4, 0.45);
 
     // 5. Synthesize Combined Prompt (System Instruction + KM Context + User Query)
-    const combinedPrompt = synthesizeRagPrompt(bot.systemPrompt || "คุณคือผู้ช่วย AI อัจฉริยะ", retrievedChunks, message);
-
-    // 6. Call LLM provider (Google Gemini) with resilient model fallback
-    let replyText = "";
-    let promptTokens = combinedPrompt.length;
-    let completionTokens = 0;
+    const sanitizedPrompt = (bot.systemPrompt || "คุณคือผู้ช่วย AI บริการลูกค้าของ AI Charming")
+      .replace(/MatchaChatbot/gi, "AI Charming")
+      .replace(/Matcha Chatbot/gi, "AI Charming");
+    const combinedPrompt = synthesizeRagPrompt(sanitizedPrompt, retrievedChunks, message);
 
     const geminiApiKey = process.env.GEMINI_API_KEY;
     if (!geminiApiKey || geminiApiKey.trim().length === 0) {
@@ -103,7 +114,7 @@ export async function POST(req: NextRequest) {
 
     const genAI = new GoogleGenerativeAI(geminiApiKey);
 
-    // Remap any deprecated model names to current active Gemini models
+    // Candidate models fallback list
     const activeBotModel =
       bot.model === "gemini-1.5-flash" || bot.model === "gemini-2.5-flash-lite"
         ? "gemini-3.5-flash-lite"
@@ -111,7 +122,6 @@ export async function POST(req: NextRequest) {
         ? "gemini-3.8-flash"
         : bot.model || "gemini-3.5-flash-lite";
 
-    // List candidate models to ensure reliable execution (active model first, then verified failovers)
     const candidateModels = [
       activeBotModel,
       "gemini-3.5-flash-lite",
@@ -121,6 +131,111 @@ export async function POST(req: NextRequest) {
     ].filter((m): m is string => Boolean(m && m.trim().length > 0));
 
     const uniqueModels = Array.from(new Set(candidateModels));
+
+    // Handle Streaming Response (Server-Sent Events)
+    if (isStreamRequested) {
+      const encoder = new TextEncoder();
+      const promptTokens = combinedPrompt.length;
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          let fullReply = "";
+          let streamSuccess = false;
+          let lastError: any = null;
+
+          for (const modelName of uniqueModels) {
+            try {
+              const model = genAI.getGenerativeModel({ model: modelName });
+              const result = await model.generateContentStream(combinedPrompt);
+
+              for await (const chunk of result.stream) {
+                const chunkText = chunk.text();
+                if (chunkText) {
+                  const cleanChunk = chunkText.replace(/\*\*/g, "");
+                  fullReply += cleanChunk;
+                  controller.enqueue(
+                    encoder.encode(`data: ${JSON.stringify({ type: "chunk", text: cleanChunk })}\n\n`)
+                  );
+                }
+              }
+
+              if (fullReply.trim().length > 0) {
+                streamSuccess = true;
+                break;
+              }
+            } catch (err: any) {
+              lastError = err;
+              console.warn(`[Stream LLM Model ${modelName} Warning]:`, err?.message || err);
+            }
+          }
+
+          if (!streamSuccess || !fullReply.trim()) {
+            const fallbackMsg = "ขออภัยครับ ขณะนี้ระบบประมวลผลข้อความขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง";
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ type: "error", error: fallbackMsg })}\n\n`)
+            );
+            controller.close();
+            return;
+          }
+
+          try {
+            // Deduct 1 credit & log usage in database
+            const [updatedUser] = await prisma.$transaction([
+              prisma.user.update({
+                where: { id: user.id },
+                data: { creditBalance: { decrement: 1 } },
+              }),
+              prisma.usageLog.create({
+                data: {
+                  botId: bot.id,
+                  apiKeyId: apiKey.id,
+                  messageCount: 1,
+                  promptTokens: promptTokens,
+                  completionTokens: fullReply.length,
+                  originDomain: originHeader || "direct",
+                },
+              }),
+            ]);
+
+            // Send done metadata
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({
+                  type: "done",
+                  reply: fullReply,
+                  creditsRemaining: updatedUser.creditBalance,
+                  botName: bot.name,
+                  sources: retrievedChunks.map((c) => ({
+                    title: c.documentTitle,
+                    relevance: Number((c.similarity * 100).toFixed(1)),
+                  })),
+                })}\n\n`
+              )
+            );
+          } catch (dbErr) {
+            console.error("[Stream DB Logging Error]", dbErr);
+          }
+
+          controller.close();
+        },
+      });
+
+      return new Response(stream, {
+        status: 200,
+        headers: {
+          ...corsHeaders(originHeader),
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          "Connection": "keep-alive",
+          "X-Accel-Buffering": "no",
+        },
+      });
+    }
+
+    // Standard Non-Streaming JSON Fallback
+    let replyText = "";
+    let promptTokens = combinedPrompt.length;
+    let completionTokens = 0;
     let lastLlmError: any = null;
 
     for (const modelName of uniqueModels) {
@@ -129,7 +244,7 @@ export async function POST(req: NextRequest) {
         const result = await model.generateContent(combinedPrompt);
         const candidateReply = result.response.text();
         if (candidateReply && candidateReply.trim().length > 0) {
-          replyText = candidateReply.trim();
+          replyText = candidateReply.replace(/\*\*/g, "").trim();
           completionTokens = replyText.length;
           break;
         }
@@ -150,8 +265,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 7. Transaction: Deduct 1 credit & log usage in database
-    const [updatedUser, usageLog] = await prisma.$transaction([
+    // Deduct 1 credit & log usage in database
+    const [updatedUser] = await prisma.$transaction([
       prisma.user.update({
         where: { id: user.id },
         data: { creditBalance: { decrement: 1 } },
@@ -168,7 +283,7 @@ export async function POST(req: NextRequest) {
       }),
     ]);
 
-    // 8. Return success response with sources & credits
+    // Return success response with sources & credits
     return NextResponse.json(
       {
         reply: replyText,
