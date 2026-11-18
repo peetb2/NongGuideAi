@@ -44,10 +44,10 @@ export async function requireAdmin() {
  * Get all users with associated bot, key, and usage counts.
  */
 export async function getAdminUsersList(searchQuery?: string, roleFilter?: string): Promise<AdminUserListItem[]> {
-  // Query users from SQLite
-  const rawUsers: any[] = await prisma.$queryRawUnsafe(
-    "SELECT id, email, passwordHash, creditBalance, role, isActive, createdAt, updatedAt FROM users ORDER BY createdAt DESC"
-  );
+  // Query users via Prisma Client (PostgreSQL compatible)
+  const rawUsers = await prisma.user.findMany({
+    orderBy: { createdAt: "desc" },
+  });
 
   // Fetch counts and related bots and apiKeys
   const bots = await prisma.bot.findMany({
@@ -199,21 +199,19 @@ export async function updateAdminUser(
     });
   }
 
-  // Handle role and isActive directly in SQLite
+  // Handle role and isActive via Prisma Client (PostgreSQL compatible)
   if (data.role) {
-    await prisma.$executeRawUnsafe(
-      "UPDATE users SET role = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
-      data.role,
-      userId
-    );
+    await prisma.user.update({
+      where: { id: userId },
+      data: { role: data.role },
+    });
   }
 
   if (typeof data.isActive === "boolean") {
-    await prisma.$executeRawUnsafe(
-      "UPDATE users SET isActive = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
-      data.isActive ? 1 : 0,
-      userId
-    );
+    await prisma.user.update({
+      where: { id: userId },
+      data: { isActive: data.isActive },
+    });
   }
 
   return true;
@@ -250,26 +248,21 @@ export async function createAdminUser(data: {
   const passwordHash = await bcrypt.hash(data.password.trim(), 10);
   const creditBalance = typeof data.creditBalance === "number" ? Math.max(0, data.creditBalance) : 50;
 
+  const role = data.role === "ADMIN" ? "ADMIN" : "USER";
   const user = await prisma.user.create({
     data: {
       email,
       passwordHash,
       creditBalance,
+      role,
     },
   });
-
-  const role = data.role === "ADMIN" ? "ADMIN" : "USER";
-  await prisma.$executeRawUnsafe(
-    "UPDATE users SET role = ? WHERE id = ?",
-    role,
-    user.id
-  );
 
   return {
     id: user.id,
     email: user.email,
     creditBalance: user.creditBalance,
-    role,
+    role: user.role,
     createdAt: user.createdAt,
   };
 }
