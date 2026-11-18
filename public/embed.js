@@ -1,5 +1,5 @@
 /**
- * AI Charming Chat Widget - Standalone Embed Script
+ * NongGuide AI Chat Widget - Standalone Embed Script
  * Supports Real-Time SSE Streaming, Dynamic Theme Customization & Shadow DOM Isolation
  */
 (function () {
@@ -487,7 +487,7 @@
               <span id="bot-avatar-initial">AI</span>
             </div>
             <div class="bot-details">
-              <h4 id="bot-name">${attrBotName || 'AI Charming Assistant'}</h4>
+              <h4 id="bot-name">${attrBotName || 'NongGuide AI'}</h4>
               <div class="bot-status" id="bot-status">
                 <span class="status-dot"></span> พร้อมให้บริการ 24 ชม.
               </div>
@@ -522,7 +522,7 @@
         </div>
 
         <div class="brand-footer" id="brand-footer">
-          ขับเคลื่อนโดย <a href="#" target="_blank">AI Charming Bot</a>
+          ขับเคลื่อนโดย <a href="#" target="_blank">NongGuide AI</a>
         </div>
       </div>
 
@@ -681,10 +681,21 @@
         });
     }
 
+    // Conversation memory (sent to the server so follow-up questions keep context)
+    const conversationHistory = [];
+    const MAX_HISTORY_TURNS = 10;
+    const rememberTurn = (userText, botText) => {
+      if (!userText || !botText) return;
+      conversationHistory.push({ role: 'user', text: userText });
+      conversationHistory.push({ role: 'assistant', text: botText });
+      while (conversationHistory.length > MAX_HISTORY_TURNS * 2) conversationHistory.shift();
+    };
+
     // Send Message with Real-Time SSE Streaming
     const handleSendMessage = async () => {
       const text = chatInput.value.trim();
       if (!text) return;
+      const historyPayload = conversationHistory.slice(-MAX_HISTORY_TURNS);
 
       // Add user message
       const userMsgDiv = document.createElement('div');
@@ -713,6 +724,7 @@
               publicKey: publicKey,
               message: text,
               sessionId: sessionId,
+              history: historyPayload,
               stream: true,
             }),
           });
@@ -790,6 +802,8 @@
 
           if (!fullReply.trim() && botMsgDiv.textContent === '') {
             botMsgDiv.textContent = 'ขออภัยครับ ไม่สามารถตอบกลับได้ในขณะนี้';
+          } else if (fullReply.trim() && botMsgDiv.className !== 'msg system-error') {
+            rememberTurn(text, fullReply.replace(/\*\*/g, '').trim());
           }
         } else {
           // --- Non-Streaming Fallback Mode ---
@@ -802,6 +816,7 @@
               publicKey: publicKey,
               message: text,
               sessionId: sessionId,
+              history: historyPayload,
               stream: false,
             }),
           });
@@ -828,6 +843,7 @@
             }
 
             chatMessages.insertBefore(botMsgDiv, typingIndicator);
+            rememberTurn(text, (data.reply || '').replace(/\*\*/g, '').trim());
           } else {
             const errDiv = document.createElement('div');
             errDiv.className = 'msg system-error';

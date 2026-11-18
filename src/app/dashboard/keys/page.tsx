@@ -121,7 +121,7 @@ export default function ApiKeysPage() {
         {/* Top App Bar Header */}
         <Header
           title="คีย์ API"
-          subtitle="จัดการ credentials สำหรับเชื่อมต่อ Botwise API"
+          subtitle="จัดการ credentials สำหรับเชื่อมต่อ NongGuide AI API"
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
           actionButton={
             <Link

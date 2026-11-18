@@ -460,7 +460,7 @@ export default function NewApiKeyPage() {
               <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/80 text-amber-900 text-xs flex items-start gap-2.5">
                 <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <p className="leading-relaxed">
-                  คีย์นี้สร้างขึ้นเพื่อใช้งานเชื่อมต่อ Botwise โปรดคัดลอกเก็บไว้ให้ปลอดภัยเพราะคุณจะไม่สามารถดูโทเค็นแบบเต็มได้อีกครั้งหลังจากปิดหน้านี้
+                  คีย์นี้สร้างขึ้นเพื่อใช้งานเชื่อมต่อ NongGuide AI โปรดคัดลอกเก็บไว้ให้ปลอดภัยเพราะคุณจะไม่สามารถดูโทเค็นแบบเต็มได้อีกครั้งหลังจากปิดหน้านี้
                 </p>
               </div>
 

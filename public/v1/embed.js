@@ -416,7 +416,7 @@
       </div>
 
       <div class="brand-footer">
-        ขับเคลื่อนโดย <a href="#" target="_blank">AI Charming Bot</a>
+        ขับเคลื่อนโดย <a href="#" target="_blank">NongGuide AI</a>
       </div>
     </div>
 
@@ -487,9 +487,13 @@
     scrollToBottom();
   };
 
+  // Conversation memory (sent to the server so follow-up questions keep context)
+  const conversationHistory = [];
+
   const handleSendMessage = async () => {
     const text = chatInput.value.trim();
     if (!text) return;
+    const historyPayload = conversationHistory.slice(-10);
 
     // User message
     addMessage(text, 'user');
@@ -510,6 +514,7 @@
           publicKey: publicKey,
           message: text,
           sessionId: sessionId,
+          history: historyPayload,
         }),
       });
 
@@ -521,6 +526,8 @@
           botNameEl.textContent = data.botName;
         }
         addMessage(data.reply, 'bot');
+        conversationHistory.push({ role: 'user', text: text }, { role: 'assistant', text: data.reply });
+        while (conversationHistory.length > 20) conversationHistory.shift();
       } else {
         const errorMsg = data.error || (response.status === 429 ? 'Chatbot credit limit exhausted.' : 'Failed to get response.');
         addMessage(errorMsg, 'system-error');

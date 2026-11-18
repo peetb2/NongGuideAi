@@ -93,7 +93,7 @@ function SidebarNavContent({ mobileOpen, onCloseMobile }: SidebarProps) {
             </Link>
             <div className="flex flex-col">
               <span className="text-white font-semibold text-[15px] tracking-tight">
-                AI Charming Chat Bot
+                NongGuide AI
               </span>
             </div>
           </div>

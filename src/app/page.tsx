@@ -62,7 +62,7 @@ export default function Home() {
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
 
-  const snippetCode = `<script\n  src="https://cdn.nimbo.ai/widget.js"\n  data-bot-key="pk_live_8f2..."\n  defer><\/script>`;
+  const snippetCode = `<script\n  src="https://ai-charming-chatbot.vercel.app/widget.js"\n  data-bot-key="pk_live_8f2..."\n  defer><\/script>`;
 
   const showToast = (message: string) => {
     if (toastTimeoutRef.current) {
@@ -166,7 +166,7 @@ export default function Home() {
         lower.includes("cost") ||
         lower.includes("plan")
       ) {
-        reply = "AI Chaming starts free with 500 queries/month. No credit card required!";
+        reply = "NongGuide AI starts free with 500 queries/month. No credit card required!";
       } else if (
         lower.includes("doc") ||
         lower.includes("pdf") ||
@@ -236,7 +236,7 @@ export default function Home() {
               </svg>
             </div>
             <span className="font-mono font-bold text-sm tracking-tight text-charcoal">
-              AI Chaming
+              NongGuide AI
             </span>
           </button>
 
@@ -370,7 +370,7 @@ export default function Home() {
             </h1>
             <p className="font-mono text-xs sm:text-sm text-charcoal/85 leading-relaxed">
               Upload your docs, get an API key, paste one line of script.{" "}
-              <span className="font-bold text-charcoal">AI Chaming</span> turns
+              <span className="font-bold text-charcoal">NongGuide AI</span> turns
               your knowledge base into a chat widget your visitors can talk to
               &mdash; no engineering team required.
             </p>
@@ -422,11 +422,11 @@ export default function Home() {
                 <div className="bg-[#5B7963] px-3.5 py-2.5 flex items-center justify-between text-white">
                   <div className="flex items-center space-x-2">
                     <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-mono font-bold">
-                      S
+                      N
                     </div>
                     <div className="flex flex-col">
                       <span className="font-mono text-[11px] font-bold tracking-tight flex items-center gap-1.5">
-                        Smart Bot
+                        NongGuide AI
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span>
                       </span>
                     </div>
@@ -575,7 +575,7 @@ export default function Home() {
                 Upload your knowledge
               </h3>
               <p className="font-mono text-xs text-charcoal/75 leading-relaxed">
-                Drop in PDFs, DOCX, or FAQ files. AI Chaming chunks and indexes
+                Drop in PDFs, DOCX, or FAQ files. NongGuide AI chunks and indexes
                 everything automatically &mdash; watch status go from Processing to
                 Ready.
               </p>
@@ -679,7 +679,7 @@ export default function Home() {
                     {"\n  "}
                     <span className="text-[#846816]">src</span>=
                     <span className="text-[#8B5A2B]">
-                      &quot;https://cdn.nimbo.ai/widget.js&quot;
+                      &quot;https://ai-charming-chatbot.vercel.app/widget.js&quot;
                     </span>
                     {"\n  "}
                     <span className="text-[#846816]">data-bot-key</span>=
@@ -729,7 +729,7 @@ export default function Home() {
 
         {/* Footer */}
         <footer className="text-center font-mono text-[11px] text-charcoal/50 pt-2">
-          &copy; 2026 AI Chaming. Built with pixel-accurate Tailwind CSS.
+          &copy; 2026 NongGuide AI. Built with pixel-accurate Tailwind CSS.
         </footer>
       </section>
 

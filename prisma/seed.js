@@ -46,8 +46,8 @@ async function main() {
     bot = await prisma.bot.create({
       data: {
         userId: user.id,
-        name: "AI Charming",
-        systemPrompt: "คุณคือผู้ช่วย AI บริการลูกค้าของ AI Charming ให้บริการตอบคำถามและคำแนะนำอย่างสุภาพและถูกต้อง",
+        name: "NongGuide AI",
+        systemPrompt: "คุณคือ NongGuide AI (น้องไกด์ AI) ผู้เชี่ยวชาญด้านการท่องเที่ยวและผู้ช่วยแนะนำสถานที่ท่องเที่ยว วางแผนทริป และตอบคำถามอย่างสุภาพและแม่นยำ",
         model: "gemini-3.5-flash-lite",
         allowedDomains: "*",
         isActive: true,

@@ -51,7 +51,7 @@ interface WidgetThemeConfig {
 }
 
 const PRESET_THEMES = [
-  { id: "sage", name: "Charming Sage", color: "#334539", bg: "#EBF3EE" },
+  { id: "sage", name: "NongGuide Sage", color: "#334539", bg: "#EBF3EE" },
   { id: "emerald", name: "Forest Emerald", color: "#065F46", bg: "#ECFDF5" },
   { id: "ocean", name: "Ocean Blue", color: "#1E40AF", bg: "#EFF6FF" },
   { id: "midnight", name: "Midnight Dark", color: "#0F172A", bg: "#F1F5F9" },
@@ -78,7 +78,7 @@ function WidgetCustomizerInner() {
     presetName: "sage",
     primaryColor: "#334539",
     position: "right",
-    botName: "AI Charming Assistant",
+    botName: "NongGuide AI",
     botSubtitle: "พร้อมให้บริการ 24 ชม.",
     avatarUrl: "",
     greetingMessage: "สวัสดีครับ! ยินดีต้อนรับสู่บริการท่องเที่ยว มีข้อมูลหรือสถานที่ใดให้แนะนำไหมครับ?",
@@ -174,7 +174,7 @@ function WidgetCustomizerInner() {
           presetName: parsed.presetName || "sage",
           primaryColor: parsed.primaryColor || "#334539",
           position: parsed.position || "right",
-          botName: parsed.botName || bot.name || "AI Charming Assistant",
+          botName: parsed.botName || bot.name || "NongGuide AI",
           botSubtitle: parsed.botSubtitle || "พร้อมให้บริการ 24 ชม.",
           avatarUrl: parsed.avatarUrl || "",
           greetingMessage: parsed.greetingMessage || "สวัสดีครับ! ยินดีต้อนรับสู่บริการท่องเที่ยว มีข้อมูลหรือสถานที่ใดให้แนะนำไหมครับ?",
@@ -302,6 +302,12 @@ function WidgetCustomizerInner() {
     const text = (overrideText || previewInput).trim();
     if (!text || isStreaming) return;
 
+    // Conversation memory: previous turns (oldest first), excluding errors and the current message
+    const historyPayload = previewMessages
+      .filter((m) => m.sender !== "error" && m.text.trim())
+      .slice(-10)
+      .map((m) => ({ role: m.sender === "user" ? "user" : "assistant", text: m.text }));
+
     setPreviewInput("");
     setPreviewMessages((prev) => [...prev, { sender: "user", text }]);
     setIsStreaming(true);
@@ -319,6 +325,7 @@ function WidgetCustomizerInner() {
             publicKey: publicApiKey || "pk_live_preview_demo",
             botId: selectedBotId,
             message: text,
+            history: historyPayload,
             stream: true,
           }),
         });
@@ -402,6 +409,7 @@ function WidgetCustomizerInner() {
             publicKey: publicApiKey || "pk_live_preview_demo",
             botId: selectedBotId,
             message: text,
+            history: historyPayload,
             stream: false,
           }),
         });
@@ -857,7 +865,7 @@ function WidgetCustomizerInner() {
                   <span className="w-3 h-3 rounded-full bg-emerald-400" />
                 </div>
                 <div className="flex-1 min-w-0 max-w-[320px] mx-3 px-4 py-1 bg-white border border-[#D8DFD9] rounded-lg text-[11px] font-mono text-slate-500 text-center truncate">
-                  https://my-charming-travel-website.com
+                  https://nongguide-travel.com
                 </div>
                 <div className="hidden sm:block shrink-0 text-[11px] font-medium text-slate-400">
                   Live Preview
@@ -1045,7 +1053,7 @@ function WidgetCustomizerInner() {
                           className="font-semibold"
                           style={{ color: config.primaryColor }}
                         >
-                          AI Charming Bot
+                          NongGuide AI
                         </span>
                       </div>
                     </div>

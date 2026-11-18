@@ -2,8 +2,8 @@ import React from "react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "AI Charming Chat Bot — แผงควบคุม Workspace",
-  description: "จัดการบอท คีย์ API และติดตามการใช้งานระบบ AI Charming Chat Bot",
+  title: "NongGuide AI — แผงควบคุม Workspace",
+  description: "จัดการบอท คีย์ API และติดตามการใช้งานระบบ NongGuide AI",
 };
 
 export default function DashboardLayout({

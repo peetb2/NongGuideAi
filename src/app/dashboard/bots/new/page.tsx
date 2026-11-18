@@ -448,7 +448,7 @@ export default function NewBotPage() {
                   required
                   value={formBotName}
                   onChange={(e) => setFormBotName(e.target.value)}
-                  placeholder="เช่น ชาร์มมิ่งซัพพอร์ต, ผู้ช่วยบริการลูกค้า"
+                  placeholder="เช่น น้องไกด์ AI, ผู้ช่วยแนะนำสถานที่ท่องเที่ยว"
                   className="w-full bg-white border border-borderLight rounded-xl px-4 py-3 text-xs text-textMain placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4E6955]/20 focus:border-[#4E6955] transition shadow-xs"
                 />
               </div>

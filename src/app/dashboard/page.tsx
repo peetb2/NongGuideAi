@@ -414,7 +414,7 @@ function AdminDashboardContent() {
                 {currentTab === "apikeys" &&
                   (apiSubView === "create"
                     ? "เชื่อมต่อแชทบอทของคุณกับหน้าเว็บไซต์ภายนอกด้วยคีย์และสคริปต์"
-                    : "จัดการ credentials สำหรับเชื่อมต่อ Botwise API")}
+                    : "จัดการ credentials สำหรับเชื่อมต่อ NongGuide AI API")}
                 {currentTab === "logs" && "ตรวจสอบ request, latency และสถานะการทำงานของ API"}
                 {currentTab === "billing" && "จัดการแพ็กเกจ การใช้งาน และใบแจ้งหนี้"}
               </p>
@@ -734,7 +734,7 @@ function AdminDashboardContent() {
                           required
                           value={formBotName}
                           onChange={(e) => setFormBotName(e.target.value)}
-                          placeholder="เช่น ชาร์มมิ่งซัพพอร์ต, น้องถุงเงิน"
+                          placeholder="เช่น น้องไกด์ AI, ผู้ช่วยนำเที่ยวเชียงใหม่"
                           className="w-full bg-white border border-borderLight rounded-xl px-4 py-3 text-xs text-textMain placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brandGreen/20 focus:border-brandGreen transition shadow-sm"
                         />
                       </div>

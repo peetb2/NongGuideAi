@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI Chaming — Turn Docs into AI Chat",
-  description: "Upload your docs, get an API key, paste one line of script. AI Chaming turns your knowledge base into a chat widget your visitors can talk to — no engineering team required.",
+  title: "NongGuide AI — AI Tourist Guide & Travel Specialist Chatbot",
+  description: "Upload your travel docs or crawl your website, get an API key, paste one line of script. NongGuide AI turns your knowledge base into an AI tourist guide widget your visitors can talk to.",
 };
 
 export default function RootLayout({

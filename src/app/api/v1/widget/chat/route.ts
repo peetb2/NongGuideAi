@@ -3,7 +3,14 @@ import { z } from "zod";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { verifyApiKey } from "@/lib/api-keys";
 import { prisma } from "@/lib/prisma";
-import { generateEmbedding, retrieveTopKChunks, synthesizeRagPrompt } from "@/lib/rag-engine";
+import {
+  generateEmbedding,
+  retrieveTopKChunks,
+  synthesizeRagPrompt,
+  sanitizeHistory,
+  buildRetrievalQuery,
+  resolveOwnerPrompt,
+} from "@/lib/rag-engine";
 
 // Zod schema for payload validation
 const chatRequestSchema = z.object({
@@ -13,6 +20,16 @@ const chatRequestSchema = z.object({
   message: z.string().min(1, "message cannot be empty").max(4000, "message is too long"),
   sessionId: z.string().optional(),
   stream: z.boolean().optional(),
+  // Previous turns (oldest first, current message excluded). Sanitized/capped server-side.
+  history: z
+    .array(
+      z.object({
+        role: z.string(),
+        text: z.string().max(8000),
+      })
+    )
+    .max(50)
+    .optional(),
 });
 
 // Helper for CORS response headers
@@ -91,14 +108,18 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Flow B: Vectorize User Query & Retrieve Top-K Context Chunks from Vector DB
-    const queryEmbedding = await generateEmbedding(message);
+    //    Follow-up questions are rewritten into standalone queries using recent history.
+    const history = sanitizeHistory(validationResult.data.history);
+    const retrievalQuery = await buildRetrievalQuery(message, history);
+    const queryEmbedding = await generateEmbedding(retrievalQuery);
     const retrievedChunks = await retrieveTopKChunks(bot.id, queryEmbedding, 4, 0.45);
 
-    // 5. Synthesize Combined Prompt (System Instruction + KM Context + User Query)
-    const sanitizedPrompt = (bot.systemPrompt || "คุณคือผู้ช่วย AI บริการลูกค้าของ AI Charming")
-      .replace(/MatchaChatbot/gi, "AI Charming")
-      .replace(/Matcha Chatbot/gi, "AI Charming");
-    const combinedPrompt = synthesizeRagPrompt(sanitizedPrompt, retrievedChunks, message);
+    // 5. Synthesize Combined Prompt (Tourism persona + owner instructions + KM Context + history + User Query)
+    const sanitizedPrompt = resolveOwnerPrompt(bot.systemPrompt, bot.name);
+    const combinedPrompt = synthesizeRagPrompt(sanitizedPrompt, retrievedChunks, message, {
+      botName: bot.name,
+      history,
+    });
 
     const geminiApiKey = process.env.GEMINI_API_KEY;
     if (!geminiApiKey || geminiApiKey.trim().length === 0) {

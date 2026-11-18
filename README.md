@@ -1,4 +1,4 @@
-# AI Travel Charming Chat (Chatbot-as-a-Service & RAG Embed Platform)
+# NongGuide AI (Chatbot-as-a-Service & AI Tourist Guide Platform)
 
 A full-stack, enterprise-grade **Chatbot-as-a-Service (CaaS)** and **RAG (Retrieval-Augmented Generation)** platform designed for travel companies, tourism businesses, hotels, and online service providers.
 
@@ -97,7 +97,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 Add the script tag before the closing `</body>` tag on any client HTML page:
 
 ```html
-<!-- AI Travel Charming Chat Widget -->
+<!-- NongGuide AI Chat Widget -->
 <script 
   src="http://localhost:3000/widget.js" 
   data-bot-key="pk_live_your_public_key" 

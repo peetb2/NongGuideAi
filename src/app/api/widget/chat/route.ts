@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { verifyApiKey } from "@/lib/api-keys";
 import { prisma } from "@/lib/prisma";
-import { generateEmbedding, retrieveTopKChunks, synthesizeRagPrompt } from "@/lib/rag-engine";
+import {
+  generateEmbedding,
+  retrieveTopKChunks,
+  synthesizeRagPrompt,
+  sanitizeHistory,
+  buildRetrievalQuery,
+  resolveOwnerPrompt,
+} from "@/lib/rag-engine";
 
 function corsHeaders(origin?: string) {
   return {
@@ -66,15 +73,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Retrieve knowledge base chunks
-    const queryEmbedding = await generateEmbedding(message);
+    // Retrieve knowledge base chunks (follow-ups rewritten into standalone queries using history)
+    const history = sanitizeHistory(body.history);
+    const retrievalQuery = await buildRetrievalQuery(message, history);
+    const queryEmbedding = await generateEmbedding(retrievalQuery);
     const retrievedChunks = await retrieveTopKChunks(bot.id, queryEmbedding, 4, 0.45);
 
-    // Synthesize RAG prompt
-    const sanitizedPrompt = (bot.systemPrompt || "คุณคือผู้ช่วย AI บริการลูกค้าของ AI Charming")
-      .replace(/MatchaChatbot/gi, "AI Charming")
-      .replace(/Matcha Chatbot/gi, "AI Charming");
-    const combinedPrompt = synthesizeRagPrompt(sanitizedPrompt, retrievedChunks, message);
+    // Synthesize RAG prompt (tourism persona + owner instructions + context + history)
+    const sanitizedPrompt = resolveOwnerPrompt(bot.systemPrompt, bot.name);
+    const combinedPrompt = synthesizeRagPrompt(sanitizedPrompt, retrievedChunks, message, {
+      botName: bot.name,
+      history,
+    });
 
     const geminiApiKey = process.env.GEMINI_API_KEY;
     if (!geminiApiKey || geminiApiKey.trim().length === 0) {
