@@ -16,16 +16,21 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
   const { id: botId, docId } = params;
 
   try {
-    const bot = await prisma.bot.findFirst({
-      where: { id: botId, userId: session.userId },
+    const bot = await prisma.bot.findUnique({
+      where: { id: botId },
+      select: { id: true, userId: true },
     });
 
     if (!bot) {
-      return NextResponse.json({ error: "Bot not found or access denied" }, { status: 404 });
+      return NextResponse.json({ error: "Bot not found" }, { status: 404 });
+    }
+
+    if (bot.userId !== session.userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const doc = await prisma.knowledgeDocument.findFirst({
-      where: { id: docId, botId },
+      where: { id: docId, botId, bot: { userId: session.userId } },
     });
 
     if (!doc) {

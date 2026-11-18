@@ -4,6 +4,8 @@ import { getAuthSession } from "@/lib/auth";
 import { generateApiKey, KeyType } from "@/lib/api-keys";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 const keyCreateSchema = z.object({
   botId: z.string().min(1, "botId is required"),
   type: z.enum(["PUBLIC_WIDGET", "SECRET_SERVER"]).default("PUBLIC_WIDGET"),
@@ -58,12 +60,17 @@ export async function POST(req: NextRequest) {
     const { botId, type, rateLimitPerMinute } = parse.data;
 
     // Verify bot belongs to user
-    const bot = await prisma.bot.findFirst({
-      where: { id: botId, userId: session.userId },
+    const bot = await prisma.bot.findUnique({
+      where: { id: botId },
+      select: { id: true, userId: true },
     });
 
     if (!bot) {
-      return NextResponse.json({ error: "Bot not found or unauthorized" }, { status: 404 });
+      return NextResponse.json({ error: "Bot not found" }, { status: 404 });
+    }
+
+    if (bot.userId !== session.userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Generate raw key and SHA-256 hash
@@ -110,16 +117,21 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Key ID required" }, { status: 400 });
   }
 
-  const keyRecord = await prisma.apiKey.findFirst({
-    where: { id: keyId, userId: session.userId },
+  const keyRecord = await prisma.apiKey.findUnique({
+    where: { id: keyId },
+    select: { id: true, userId: true },
   });
 
   if (!keyRecord) {
     return NextResponse.json({ error: "API Key not found" }, { status: 404 });
   }
 
+  if (keyRecord.userId !== session.userId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   await prisma.apiKey.delete({
-    where: { id: keyId },
+    where: { id: keyId, userId: session.userId },
   });
 
   return NextResponse.json({ success: true });

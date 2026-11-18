@@ -19,7 +19,7 @@ export default function Header({
   const [logsData, setLogsData] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch("/api/analytics")
+    fetch("/api/analytics", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.logs && Array.isArray(data.logs)) {

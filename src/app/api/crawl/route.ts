@@ -17,6 +17,10 @@ const crawlSchema = z.object({
 export async function POST(req: NextRequest) {
   try {
     const session = await getAuthSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json().catch(() => ({}));
     const parse = crawlSchema.safeParse(body);
 
@@ -32,16 +36,25 @@ export async function POST(req: NextRequest) {
     // Verify bot ownership if botId is provided
     let targetBot: any = null;
     if (botId) {
-      targetBot = await prisma.bot.findFirst({
-        where: session ? { id: botId, userId: session.userId } : { id: botId },
+      const existingBot = await prisma.bot.findUnique({
+        where: { id: botId },
       });
 
-      if (!targetBot) {
+      if (!existingBot) {
         return NextResponse.json(
-          { error: "ไม่พบบอทเป้าหมายหรือไม่มีสิทธิ์เข้าถึง" },
+          { error: "ไม่พบบอทเป้าหมาย" },
           { status: 404 }
         );
       }
+
+      if (existingBot.userId !== session.userId) {
+        return NextResponse.json(
+          { error: "ไม่มีสิทธิ์เข้าถึงบอทนี้" },
+          { status: 403 }
+        );
+      }
+
+      targetBot = existingBot;
     }
 
     // 1. Streaming response for real-time progress feedback

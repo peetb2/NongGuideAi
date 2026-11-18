@@ -118,8 +118,8 @@ function WidgetCustomizerInner() {
       try {
         setLoading(true);
         const [botsRes, keysRes] = await Promise.all([
-          fetch("/api/bots"),
-          fetch("/api/keys"),
+          fetch("/api/bots", { cache: "no-store" }),
+          fetch("/api/keys", { cache: "no-store" }),
         ]);
 
         let fetchedBots: BotData[] = [];

@@ -47,10 +47,10 @@ export default function NewApiKeyPage() {
     if (typeof window !== "undefined") {
       setAppOrigin(window.location.origin);
     }
-    fetch("/api/bots")
+    fetch("/api/bots", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data?.bots && Array.isArray(data.bots) && data.bots.length > 0) {
+        if (data?.bots && Array.isArray(data.bots)) {
           const mapped: BotItem[] = data.bots.map((b: any) => ({
             id: b.id,
             name: b.name,
@@ -60,24 +60,19 @@ export default function NewApiKeyPage() {
             status: b.isActive ? "active" : "paused",
           }));
           setBots(mapped);
-          setSelectedBotId(mapped[0].id);
-          setActiveEmbedBotId(mapped[0].id);
-        } else {
-          const localBots = getStoredBots();
-          setBots(localBots);
-          if (localBots.length > 0) {
-            setSelectedBotId(localBots[0].id);
-            setActiveEmbedBotId(localBots[0].id);
+          if (mapped.length > 0) {
+            setSelectedBotId(mapped[0].id);
+            setActiveEmbedBotId(mapped[0].id);
+          } else {
+            setSelectedBotId("");
+            setActiveEmbedBotId("");
           }
+        } else {
+          setBots([]);
         }
       })
       .catch(() => {
-        const localBots = getStoredBots();
-        setBots(localBots);
-        if (localBots.length > 0) {
-          setSelectedBotId(localBots[0].id);
-          setActiveEmbedBotId(localBots[0].id);
-        }
+        setBots([]);
       });
   }, []);
 

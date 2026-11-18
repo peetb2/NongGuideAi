@@ -4,6 +4,8 @@ import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { chunkText, generateEmbedding, retrieveTopKChunks } from "@/lib/rag-engine";
 
+export const dynamic = "force-dynamic";
+
 const knowledgeIngestSchema = z.object({
   title: z.string().min(1, "Document title is required").max(200),
   content: z.string().min(1, "Document content is required"),
@@ -26,12 +28,17 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   const { id: botId } = params;
 
   try {
-    const bot = await prisma.bot.findFirst({
-      where: { id: botId, userId: session.userId },
+    const bot = await prisma.bot.findUnique({
+      where: { id: botId },
+      select: { id: true, userId: true },
     });
 
     if (!bot) {
-      return NextResponse.json({ error: "Bot not found or access denied" }, { status: 404 });
+      return NextResponse.json({ error: "Bot not found" }, { status: 404 });
+    }
+
+    if (bot.userId !== session.userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const searchQuery = req.nextUrl.searchParams.get("query");
@@ -43,7 +50,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     const documents = await prisma.knowledgeDocument.findMany({
-      where: { botId },
+      where: { botId, bot: { userId: session.userId } },
       include: {
         _count: {
           select: { chunks: true },
@@ -81,12 +88,17 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const { id: botId } = params;
 
   try {
-    const bot = await prisma.bot.findFirst({
-      where: { id: botId, userId: session.userId },
+    const bot = await prisma.bot.findUnique({
+      where: { id: botId },
+      select: { id: true, userId: true },
     });
 
     if (!bot) {
-      return NextResponse.json({ error: "Bot not found or access denied" }, { status: 404 });
+      return NextResponse.json({ error: "Bot not found" }, { status: 404 });
+    }
+
+    if (bot.userId !== session.userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = await req.json().catch(() => ({}));

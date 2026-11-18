@@ -3,6 +3,8 @@ import { z } from "zod";
 import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 const botUpdateSchema = z.object({
   name: z.string().min(1).optional(),
   systemPrompt: z.string().min(1).optional(),
@@ -23,10 +25,24 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const existing = await prisma.bot.findUnique({
+    where: { id: params.id },
+    select: { userId: true },
+  });
+
+  if (!existing) {
+    return NextResponse.json({ error: "Bot not found" }, { status: 404 });
+  }
+
+  if (existing.userId !== session.userId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const bot = await prisma.bot.findFirst({
     where: { id: params.id, userId: session.userId },
     include: {
       apiKeys: {
+        where: { userId: session.userId },
         select: {
           id: true,
           keyPrefix: true,
@@ -68,16 +84,21 @@ export async function PUT(
       );
     }
 
-    const bot = await prisma.bot.findFirst({
-      where: { id: params.id, userId: session.userId },
+    const bot = await prisma.bot.findUnique({
+      where: { id: params.id },
+      select: { id: true, userId: true },
     });
 
     if (!bot) {
       return NextResponse.json({ error: "Bot not found" }, { status: 404 });
     }
 
+    if (bot.userId !== session.userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const updatedBot = await prisma.bot.update({
-      where: { id: params.id },
+      where: { id: params.id, userId: session.userId },
       data: parse.data,
     });
 
@@ -96,16 +117,21 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const bot = await prisma.bot.findFirst({
-    where: { id: params.id, userId: session.userId },
+  const bot = await prisma.bot.findUnique({
+    where: { id: params.id },
+    select: { id: true, userId: true },
   });
 
   if (!bot) {
     return NextResponse.json({ error: "Bot not found" }, { status: 404 });
   }
 
+  if (bot.userId !== session.userId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   await prisma.bot.delete({
-    where: { id: params.id },
+    where: { id: params.id, userId: session.userId },
   });
 
   return NextResponse.json({ success: true });

@@ -136,29 +136,24 @@ export async function verifyApiKey(
     }
   }
 
-  // 3. Fallback for dashboard live preview: if key is preview demo or botId is provided
-  if (!apiKeyRecord && (options?.botId || cleanKey === "pk_live_preview_demo" || cleanKey.includes("preview"))) {
-    const targetBotId = options?.botId;
-    const bot = targetBotId
-      ? await prisma.bot.findUnique({
-          where: { id: targetBotId },
-          include: { user: true, apiKeys: true },
-        })
-      : await prisma.bot.findFirst({
-          include: { user: true, apiKeys: true },
-        });
+  // 3. Fallback for dashboard live preview: only when an explicit botId is provided
+  if (!apiKeyRecord && options?.botId && (cleanKey === "pk_live_preview_demo" || cleanKey.includes("preview"))) {
+    const bot = await prisma.bot.findUnique({
+      where: { id: options.botId },
+      include: { user: true, apiKeys: true },
+    });
 
-    if (bot) {
-      const existingKey = bot.apiKeys && bot.apiKeys.length > 0 ? bot.apiKeys[0] : null;
+    if (bot && bot.apiKeys && bot.apiKeys.length > 0) {
+      const existingKey = bot.apiKeys[0];
       apiKeyRecord = {
-        id: existingKey ? existingKey.id : `preview_${bot.id}`,
+        id: existingKey.id,
         botId: bot.id,
         userId: bot.userId,
-        keyPrefix: existingKey ? existingKey.keyPrefix : "pk_live_preview",
-        keyHash: existingKey ? existingKey.keyHash : "preview_hash",
-        type: existingKey ? existingKey.type : "PUBLIC_WIDGET",
-        rateLimitPerMinute: existingKey ? existingKey.rateLimitPerMinute : 60,
-        createdAt: existingKey ? existingKey.createdAt : new Date(),
+        keyPrefix: existingKey.keyPrefix,
+        keyHash: existingKey.keyHash,
+        type: existingKey.type,
+        rateLimitPerMinute: existingKey.rateLimitPerMinute,
+        createdAt: existingKey.createdAt,
         bot: bot,
         user: bot.user,
       };

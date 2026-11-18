@@ -33,9 +33,9 @@ export default function ApiKeysPage() {
   const [apiKeys, setApiKeys] = useState<ApiKeyItem[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load keys from server API or local store
+  // Load keys from server API
   useEffect(() => {
-    fetch("/api/keys")
+    fetch("/api/keys", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.apiKeys && Array.isArray(data.apiKeys)) {
@@ -55,12 +55,12 @@ export default function ApiKeysPage() {
           }));
           setApiKeys(mapped);
         } else {
-          setApiKeys(getStoredApiKeys());
+          setApiKeys([]);
         }
         setIsLoaded(true);
       })
       .catch(() => {
-        setApiKeys(getStoredApiKeys());
+        setApiKeys([]);
         setIsLoaded(true);
       });
   }, []);

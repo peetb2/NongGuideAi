@@ -3,7 +3,6 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { createSessionToken } from "@/lib/auth";
-import { generateApiKey, KeyType } from "@/lib/api-keys";
 
 const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -39,37 +38,12 @@ export async function POST(req: NextRequest) {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Create User (50 default free credits)
+    // Create User (50 default free credits, empty workspace with 0 bots)
     const newUser = await prisma.user.create({
       data: {
         email: email.toLowerCase(),
         passwordHash,
         creditBalance: 50,
-      },
-    });
-
-    // Create a default Bot for the user
-    const defaultBot = await prisma.bot.create({
-      data: {
-        userId: newUser.id,
-        name: "Customer Support Bot",
-        systemPrompt: "You are a helpful customer support AI assistant for our website.",
-        model: "gemini-3.5-flash-lite",
-        allowedDomains: "*",
-        isActive: true,
-      },
-    });
-
-    // Generate initial API key for the default bot
-    const keyData = generateApiKey(KeyType.PUBLIC_WIDGET);
-    await prisma.apiKey.create({
-      data: {
-        botId: defaultBot.id,
-        userId: newUser.id,
-        keyPrefix: keyData.keyPrefix,
-        keyHash: keyData.keyHash,
-        type: KeyType.PUBLIC_WIDGET,
-        rateLimitPerMinute: 60,
       },
     });
 
@@ -82,7 +56,6 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({
       success: true,
       user: { id: newUser.id, email: newUser.email, creditBalance: newUser.creditBalance },
-      initialRawKey: keyData.rawKey,
     });
 
     response.cookies.set("matcha_session", token, {

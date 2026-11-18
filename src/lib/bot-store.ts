@@ -1,3 +1,5 @@
+import { getCachedUser } from "./client-auth";
+
 export interface BotItem {
   id: string;
   name: string;
@@ -14,14 +16,22 @@ export interface BotItem {
 
 export const INITIAL_BOTS: BotItem[] = [];
 
-const STORAGE_KEY = "chaming_bots_data";
+const STORAGE_KEY_PREFIX = "chaming_bots_data";
+
+function getScopedStorageKey(): string | null {
+  const user = getCachedUser();
+  if (!user?.id) return null;
+  return `${STORAGE_KEY_PREFIX}_${user.id}`;
+}
 
 export function getStoredBots(): BotItem[] {
   if (typeof window === "undefined") {
     return INITIAL_BOTS;
   }
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const scopedKey = getScopedStorageKey();
+    if (!scopedKey) return INITIAL_BOTS;
+    const raw = localStorage.getItem(scopedKey);
     if (!raw) {
       return INITIAL_BOTS;
     }
@@ -38,7 +48,9 @@ export function getStoredBots(): BotItem[] {
 export function saveStoredBots(bots: BotItem[]): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(bots));
+    const scopedKey = getScopedStorageKey();
+    if (!scopedKey) return;
+    localStorage.setItem(scopedKey, JSON.stringify(bots));
   } catch (err) {
     console.error("Failed to save bots to localStorage:", err);
   }

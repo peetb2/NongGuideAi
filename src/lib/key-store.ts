@@ -1,3 +1,5 @@
+import { getCachedUser } from "./client-auth";
+
 export interface ApiKeyItem {
   id: string;
   name: string;
@@ -12,14 +14,22 @@ export interface ApiKeyItem {
 
 export const INITIAL_API_KEYS: ApiKeyItem[] = [];
 
-const STORAGE_KEY = "botwise_api_keys_store";
+const STORAGE_KEY_PREFIX = "botwise_api_keys_store";
+
+function getScopedStorageKey(): string | null {
+  const user = getCachedUser();
+  if (!user?.id) return null;
+  return `${STORAGE_KEY_PREFIX}_${user.id}`;
+}
 
 export function getStoredApiKeys(): ApiKeyItem[] {
   if (typeof window === "undefined") {
     return INITIAL_API_KEYS;
   }
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const scopedKey = getScopedStorageKey();
+    if (!scopedKey) return INITIAL_API_KEYS;
+    const raw = localStorage.getItem(scopedKey);
     if (!raw) {
       return INITIAL_API_KEYS;
     }
@@ -36,7 +46,9 @@ export function getStoredApiKeys(): ApiKeyItem[] {
 export function saveStoredApiKeys(keys: ApiKeyItem[]): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
+    const scopedKey = getScopedStorageKey();
+    if (!scopedKey) return;
+    localStorage.setItem(scopedKey, JSON.stringify(keys));
   } catch (err) {
     console.error("Failed to save API keys to localStorage:", err);
   }

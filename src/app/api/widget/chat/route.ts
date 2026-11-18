@@ -154,6 +154,7 @@ export async function POST(req: NextRequest) {
               }),
               prisma.usageLog.create({
                 data: {
+                  userId: user.id,
                   botId: bot.id,
                   apiKeyId: apiKey.id,
                   messageCount: 1,
@@ -239,6 +240,7 @@ export async function POST(req: NextRequest) {
       }),
       prisma.usageLog.create({
         data: {
+          userId: user.id,
           botId: bot.id,
           apiKeyId: apiKey.id,
           messageCount: 1,

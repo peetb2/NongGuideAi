@@ -86,7 +86,7 @@ function AdminDashboardContent() {
     }
 
     // Fetch authenticated user
-    fetch("/api/auth/me")
+    fetch("/api/auth/me", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.authenticated && data.user) {
@@ -99,7 +99,7 @@ function AdminDashboardContent() {
       .catch(() => {});
 
     // 1. Fetch real bots from DB
-    fetch("/api/bots")
+    fetch("/api/bots", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.bots && Array.isArray(data.bots)) {
@@ -123,7 +123,7 @@ function AdminDashboardContent() {
       .catch(() => {});
 
     // 2. Fetch real keys from DB
-    fetch("/api/keys")
+    fetch("/api/keys", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.apiKeys && Array.isArray(data.apiKeys)) {
@@ -142,7 +142,7 @@ function AdminDashboardContent() {
       .catch(() => {});
 
     // 3. Fetch real analytics & usage logs from DB
-    fetch("/api/analytics")
+    fetch("/api/analytics", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data) {

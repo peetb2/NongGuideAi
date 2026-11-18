@@ -94,7 +94,7 @@ export default function BotListPage() {
   // Fetch real bots
   const loadBots = async () => {
     try {
-      const res = await fetch("/api/bots");
+      const res = await fetch("/api/bots", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         if (data?.bots && Array.isArray(data.bots)) {
@@ -114,10 +114,15 @@ export default function BotListPage() {
             usageCount: b._count?.usageLogs ?? 0,
           }));
           setBotsData(realBots);
+        } else {
+          setBotsData([]);
         }
+      } else {
+        setBotsData([]);
       }
     } catch (err) {
       console.error("Error loading bots:", err);
+      setBotsData([]);
     } finally {
       setIsLoaded(true);
     }

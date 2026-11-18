@@ -22,6 +22,7 @@ model User {
 
   bots          Bot[]
   apiKeys       ApiKey[]
+  usageLogs     UsageLog[]
 
   @@map("users")
 }
@@ -45,6 +46,7 @@ model Bot {
   knowledgeDocs  KnowledgeDocument[]
   knowledgeChunks KnowledgeChunk[]
 
+  @@index([userId])
   @@map("bots")
 }
 
@@ -104,6 +106,8 @@ model ApiKey {
 
 model UsageLog {
   id               String   @id @default(uuid())
+  userId           String?
+  user             User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   botId            String
   bot              Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
   apiKeyId         String
@@ -114,6 +118,7 @@ model UsageLog {
   originDomain     String?
   createdAt        DateTime @default(now())
 
+  @@index([userId])
   @@index([botId])
   @@index([apiKeyId])
   @@index([createdAt])

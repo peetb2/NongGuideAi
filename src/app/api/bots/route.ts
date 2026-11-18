@@ -3,6 +3,8 @@ import { z } from "zod";
 import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 const botCreateSchema = z.object({
   name: z.string().min(1, "Bot name is required").max(100),
   systemPrompt: z.string().min(1, "System prompt is required"),
