@@ -1,4 +1,6 @@
 (function () {
+  const currentScriptAtLoad = document.currentScript;
+
   function initWidget() {
     if (document.getElementById('matcha-chatbot-widget-root')) {
       return;
@@ -13,25 +15,48 @@
     }
 
     // 1. Identify script element and extract data-bot-key / data-key
-    let script = document.currentScript;
+    let script = currentScriptAtLoad || document.currentScript;
     if (!script) {
       const candidates = document.querySelectorAll(
-        'script[data-bot-key], script[data-key], script[data-api-key], script[src*="widget.js"], script[src*="embed.js"]'
+        'script[data-bot-key], script[data-api-key], script[data-key], script[data-public-key], script[data-token], script[data-bot], script[data-bot-id], script[src*="widget.js"], script[src*="embed.js"]'
       );
       if (candidates.length > 0) {
         script = candidates[candidates.length - 1];
       }
     }
 
-    const publicKey = script
-      ? (
-          script.getAttribute('data-bot-key') ||
-          script.getAttribute('data-key') ||
+    let scriptUrlParams = null;
+    if (script && script.src) {
+      try {
+        scriptUrlParams = new URL(script.src, window.location.href).searchParams;
+      } catch (e) {
+        scriptUrlParams = null;
+      }
+    }
+
+    const publicKey = (
+      (script &&
+        (script.getAttribute('data-bot-key') ||
           script.getAttribute('data-api-key') ||
-          script.getAttribute('data-token') ||
-          ''
-        ).trim()
-      : '';
+          script.getAttribute('data-key') ||
+          script.getAttribute('data-public-key') ||
+          script.getAttribute('data-token'))) ||
+      (scriptUrlParams &&
+        (scriptUrlParams.get('key') ||
+          scriptUrlParams.get('apiKey') ||
+          scriptUrlParams.get('botKey') ||
+          scriptUrlParams.get('publicKey'))) ||
+      ''
+    ).trim();
+
+    const botId = (
+      (script &&
+        (script.getAttribute('data-bot') ||
+          script.getAttribute('data-bot-id') ||
+          script.getAttribute('data-botid'))) ||
+      (scriptUrlParams && (scriptUrlParams.get('botId') || scriptUrlParams.get('bot'))) ||
+      ''
+    ).trim();
 
     // Determine host origin for backend chat API
     let apiBaseUrl = '';
@@ -505,13 +530,22 @@
     try {
       const apiEndpoint = `${apiBaseUrl}/api/v1/widget/chat`;
 
+      const reqHeaders = {
+        'Content-Type': 'application/json',
+      };
+      if (publicKey) {
+        reqHeaders['x-api-key'] = publicKey;
+        reqHeaders['Authorization'] = `Bearer ${publicKey}`;
+      }
+
       const response = await fetch(apiEndpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: reqHeaders,
         body: JSON.stringify({
           publicKey: publicKey,
+          botKey: publicKey,
+          apiKey: publicKey,
+          botId: botId || undefined,
           message: text,
           sessionId: sessionId,
           history: historyPayload,

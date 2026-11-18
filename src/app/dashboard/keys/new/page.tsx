@@ -40,12 +40,24 @@ export default function NewApiKeyPage() {
   const [hasGeneratedNewKey, setHasGeneratedNewKey] = useState(false);
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
-  const [appOrigin, setAppOrigin] = useState("http://localhost:3000");
+  const envAppUrl = (process.env.NEXT_PUBLIC_APP_URL || "").trim().replace(/\/+$/, "");
+  const [appOrigin, setAppOrigin] = useState(
+    envAppUrl && !envAppUrl.includes("localhost") && !envAppUrl.includes("127.0.0.1")
+      ? envAppUrl
+      : "https://nong-guide-ai.vercel.app"
+  );
 
   // Load Bots and detect origin
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setAppOrigin(window.location.origin);
+      const browserOrigin = window.location.origin.replace(/\/+$/, "");
+      if (!browserOrigin.includes("localhost") && !browserOrigin.includes("127.0.0.1")) {
+        setAppOrigin(browserOrigin);
+      } else if (envAppUrl && !envAppUrl.includes("localhost") && !envAppUrl.includes("127.0.0.1")) {
+        setAppOrigin(envAppUrl);
+      } else {
+        setAppOrigin(browserOrigin);
+      }
     }
     fetch("/api/bots", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
@@ -96,6 +108,10 @@ export default function NewApiKeyPage() {
 
   const handleGenerateApiKey = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedBotId) {
+      showToast("กรุณาเลือกบอทก่อนสร้าง API Key");
+      return;
+    }
     setIsSubmitting(true);
 
     const chosenBot = bots.find((b) => b.id === selectedBotId);
@@ -110,12 +126,7 @@ export default function NewApiKeyPage() {
       scopeText = "Read & Write";
     }
 
-    const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const generatedPrefix = `bw_live_${randomSuffix}`;
-    const generatedRawKey = `pk_live_${Math.random().toString(36).substring(2)}${Math.random().toString(36).substring(2)}`;
-
     try {
-      // 1. Try server POST
       const res = await fetch("/api/keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -126,10 +137,10 @@ export default function NewApiKeyPage() {
         }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        const serverKey = data.rawKey || generatedRawKey;
-        const serverPrefix = data.apiKey?.keyPrefix || generatedPrefix;
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.rawKey) {
+        const serverKey = data.rawKey;
+        const serverPrefix = data.apiKey?.keyPrefix || serverKey.slice(0, 15);
 
         const newKeyItem = {
           id: data.apiKey?.id || `key-${Date.now()}`,
@@ -149,42 +160,10 @@ export default function NewApiKeyPage() {
         setHasGeneratedNewKey(true);
         showToast(`สร้าง API Key "${label}" สำเร็จแล้ว!`);
       } else {
-        // Fallback local key creation
-        const newKeyItem = {
-          id: `key-${Date.now()}`,
-          name: label,
-          prefix: generatedPrefix,
-          created: "เพิ่งสร้างเมื่อสักครู่",
-          lastUsed: "ยังไม่มีการเรียกใช้",
-          perm: scopeText,
-          botId: selectedBotId,
-          botName: chosenBotName,
-          rawKey: generatedRawKey,
-        };
-        addStoredApiKey(newKeyItem);
-        setActiveDisplayKey(generatedRawKey);
-        setActiveEmbedBotId(selectedBotId);
-        setHasGeneratedNewKey(true);
-        showToast(`สร้าง API Key "${label}" สำเร็จแล้ว!`);
+        showToast(data?.error || "ไม่สามารถสร้าง API Key ได้ กรุณาลองใหม่อีกครั้ง");
       }
     } catch {
-      // Offline / client fallback
-      const newKeyItem = {
-        id: `key-${Date.now()}`,
-        name: label,
-        prefix: generatedPrefix,
-        created: "เพิ่งสร้างเมื่อสักครู่",
-        lastUsed: "ยังไม่มีการเรียกใช้",
-        perm: scopeText,
-        botId: selectedBotId,
-        botName: chosenBotName,
-        rawKey: generatedRawKey,
-      };
-      addStoredApiKey(newKeyItem);
-      setActiveDisplayKey(generatedRawKey);
-      setActiveEmbedBotId(selectedBotId);
-      setHasGeneratedNewKey(true);
-      showToast(`สร้าง API Key "${label}" สำเร็จแล้ว!`);
+      showToast("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์เพื่อสร้างคีย์");
     } finally {
       setIsSubmitting(false);
     }

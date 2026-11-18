@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyApiKey } from "@/lib/api-keys";
 import { prisma } from "@/lib/prisma";
 
-function corsHeaders(origin?: string) {
+function corsHeaders(_origin?: string) {
   return {
-    "Access-Control-Allow-Origin": origin || "*",
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key, Accept, Cache-Control, X-Requested-With",
+    "Access-Control-Max-Age": "86400",
   };
 }
 
@@ -20,16 +21,35 @@ export async function OPTIONS(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   const origin = req.headers.get("origin") || req.headers.get("referer") || undefined;
-  const key = req.nextUrl.searchParams.get("key") || req.nextUrl.searchParams.get("publicKey");
+  const headerApiKey =
+    req.headers.get("x-api-key") ||
+    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+    "";
+  const key = (
+    req.nextUrl.searchParams.get("key") ||
+    req.nextUrl.searchParams.get("publicKey") ||
+    req.nextUrl.searchParams.get("apiKey") ||
+    req.nextUrl.searchParams.get("botKey") ||
+    headerApiKey ||
+    ""
+  ).trim();
+  const botId = (
+    req.nextUrl.searchParams.get("botId") ||
+    req.nextUrl.searchParams.get("bot") ||
+    ""
+  ).trim();
 
-  if (!key) {
+  if (!key && !botId) {
     return NextResponse.json(
-      { error: "API key is required" },
+      { error: "API key or botId is required" },
       { status: 400, headers: corsHeaders(origin) }
     );
   }
 
-  const verification = await verifyApiKey(key, { originDomain: origin });
+  const verification = await verifyApiKey(key, {
+    originDomain: origin,
+    botId: botId || undefined,
+  });
   if (!verification.valid) {
     const statusCode = verification.errorCode === "DOMAIN_NOT_ALLOWED" ? 403 : 401;
     return NextResponse.json(

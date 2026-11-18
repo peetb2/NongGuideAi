@@ -3,6 +3,8 @@
  * Supports Real-Time SSE Streaming, Dynamic Theme Customization & Shadow DOM Isolation
  */
 (function () {
+  const currentScriptAtLoad = document.currentScript;
+
   function initWidget() {
     if (document.getElementById('matcha-chatbot-widget-root')) {
       return;
@@ -17,25 +19,55 @@
     }
 
     // 1. Identify script element and extract configuration attributes
-    let script = document.currentScript;
+    let script = currentScriptAtLoad || document.currentScript;
     if (!script) {
       const candidates = document.querySelectorAll(
-        'script[data-bot-key], script[data-key], script[data-api-key], script[src*="widget.js"], script[src*="embed.js"]'
+        'script[data-bot-key], script[data-api-key], script[data-key], script[data-public-key], script[data-token], script[data-bot], script[data-bot-id], script[src*="widget.js"], script[src*="embed.js"]'
       );
       if (candidates.length > 0) {
         script = candidates[candidates.length - 1];
       }
     }
 
-    const publicKey = script
-      ? (
-          script.getAttribute('data-bot-key') ||
-          script.getAttribute('data-key') ||
+    let scriptUrlParams = null;
+    if (script && script.src) {
+      try {
+        scriptUrlParams = new URL(script.src, window.location.href).searchParams;
+      } catch (e) {
+        scriptUrlParams = null;
+      }
+    }
+
+    const globalCfg =
+      (typeof window !== 'undefined' && (window.NongGuideConfig || window.MatchaChatbotConfig)) || {};
+
+    const publicKey = (
+      (script &&
+        (script.getAttribute('data-bot-key') ||
           script.getAttribute('data-api-key') ||
-          script.getAttribute('data-token') ||
-          ''
-        ).trim()
-      : '';
+          script.getAttribute('data-key') ||
+          script.getAttribute('data-public-key') ||
+          script.getAttribute('data-token'))) ||
+      (scriptUrlParams &&
+        (scriptUrlParams.get('key') ||
+          scriptUrlParams.get('apiKey') ||
+          scriptUrlParams.get('botKey') ||
+          scriptUrlParams.get('publicKey'))) ||
+      globalCfg.apiKey ||
+      globalCfg.publicKey ||
+      globalCfg.botKey ||
+      ''
+    ).trim();
+
+    const botId = (
+      (script &&
+        (script.getAttribute('data-bot') ||
+          script.getAttribute('data-bot-id') ||
+          script.getAttribute('data-botid'))) ||
+      (scriptUrlParams && (scriptUrlParams.get('botId') || scriptUrlParams.get('bot'))) ||
+      globalCfg.botId ||
+      ''
+    ).trim();
 
     // Determine host origin for backend chat API
     let apiBaseUrl = '';
@@ -667,9 +699,19 @@
       }
     }
 
-    // Fetch dynamic bot config from server if publicKey is available
-    if (publicKey) {
-      fetch(`${apiBaseUrl}/api/widget/config?key=${encodeURIComponent(publicKey)}`)
+    // Fetch dynamic bot config from server if publicKey or botId is available
+    if (publicKey || botId) {
+      const cfgParams = new URLSearchParams();
+      if (publicKey) cfgParams.set('key', publicKey);
+      if (botId) cfgParams.set('botId', botId);
+      fetch(`${apiBaseUrl}/api/widget/config?${cfgParams.toString()}`, {
+        headers: publicKey
+          ? {
+              'x-api-key': publicKey,
+              Authorization: `Bearer ${publicKey}`,
+            }
+          : {},
+      })
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (data && data.config) {
@@ -714,14 +756,22 @@
       try {
         if (enableStreaming && typeof ReadableStream !== 'undefined') {
           // --- Real-Time Streaming Mode ---
+          const reqHeaders = {
+            'Content-Type': 'application/json',
+            'Accept': 'text/event-stream',
+          };
+          if (publicKey) {
+            reqHeaders['x-api-key'] = publicKey;
+            reqHeaders['Authorization'] = `Bearer ${publicKey}`;
+          }
           const response = await fetch(apiEndpoint, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'text/event-stream',
-            },
+            headers: reqHeaders,
             body: JSON.stringify({
               publicKey: publicKey,
+              botKey: publicKey,
+              apiKey: publicKey,
+              botId: botId || undefined,
               message: text,
               sessionId: sessionId,
               history: historyPayload,
@@ -807,13 +857,21 @@
           }
         } else {
           // --- Non-Streaming Fallback Mode ---
+          const fallbackHeaders = {
+            'Content-Type': 'application/json',
+          };
+          if (publicKey) {
+            fallbackHeaders['x-api-key'] = publicKey;
+            fallbackHeaders['Authorization'] = `Bearer ${publicKey}`;
+          }
           const response = await fetch(apiEndpoint, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: fallbackHeaders,
             body: JSON.stringify({
               publicKey: publicKey,
+              botKey: publicKey,
+              apiKey: publicKey,
+              botId: botId || undefined,
               message: text,
               sessionId: sessionId,
               history: historyPayload,

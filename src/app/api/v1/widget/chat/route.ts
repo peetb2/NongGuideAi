@@ -16,7 +16,10 @@ import {
 const chatRequestSchema = z.object({
   publicKey: z.string().optional(),
   botKey: z.string().optional(),
+  apiKey: z.string().optional(),
+  key: z.string().optional(),
   botId: z.string().optional(),
+  bot: z.string().optional(),
   message: z.string().min(1, "message cannot be empty").max(4000, "message is too long"),
   sessionId: z.string().optional(),
   stream: z.boolean().optional(),
@@ -32,12 +35,13 @@ const chatRequestSchema = z.object({
     .optional(),
 });
 
-// Helper for CORS response headers
-function corsHeaders(origin?: string) {
+// Helper for CORS response headers (allow all external domains to call widget endpoints)
+function corsHeaders(_origin?: string) {
   return {
-    "Access-Control-Allow-Origin": origin || "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key, Accept, Cache-Control, X-Requested-With",
+    "Access-Control-Max-Age": "86400",
   };
 }
 
@@ -69,8 +73,42 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { publicKey, botKey, botId, message } = validationResult.data;
-    const rawKey = publicKey || botKey || jsonBody.publicKey || jsonBody.botKey || "";
+    const { publicKey, botKey, apiKey: bodyApiKey, key: bodyKey, botId, bot: bodyBot, message } = validationResult.data;
+    const headerApiKey =
+      req.headers.get("x-api-key") ||
+      req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+      "";
+    const queryApiKey =
+      req.nextUrl.searchParams.get("key") ||
+      req.nextUrl.searchParams.get("apiKey") ||
+      req.nextUrl.searchParams.get("publicKey") ||
+      req.nextUrl.searchParams.get("botKey") ||
+      "";
+
+    const rawKey = (
+      publicKey ||
+      botKey ||
+      bodyApiKey ||
+      bodyKey ||
+      jsonBody.publicKey ||
+      jsonBody.botKey ||
+      jsonBody.apiKey ||
+      jsonBody.key ||
+      headerApiKey ||
+      queryApiKey ||
+      ""
+    ).trim();
+
+    const effectiveBotId = (
+      botId ||
+      bodyBot ||
+      jsonBody.botId ||
+      jsonBody.bot ||
+      req.nextUrl.searchParams.get("botId") ||
+      req.nextUrl.searchParams.get("bot") ||
+      ""
+    ).trim();
+
     const isStreamRequested = Boolean(
       validationResult.data.stream === true ||
       jsonBody.stream === true ||
@@ -81,7 +119,7 @@ export async function POST(req: NextRequest) {
     // 2. Validate API key against DB & active status
     const keyVerification = await verifyApiKey(rawKey, {
       originDomain: originHeader,
-      botId: botId || jsonBody.botId,
+      botId: effectiveBotId || undefined,
     });
     if (!keyVerification.valid) {
       const statusCode = keyVerification.errorCode === "DOMAIN_NOT_ALLOWED" ? 403 : 401;

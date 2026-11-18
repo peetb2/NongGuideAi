@@ -15,7 +15,12 @@ export interface GeneratedKeyResult {
 
 export interface KeyVerificationResult {
   valid: boolean;
-  errorCode?: "INVALID_KEY" | "BOT_INACTIVE" | "INSUFFICIENT_CREDITS" | "DOMAIN_NOT_ALLOWED";
+  errorCode?:
+    | "MISSING_KEY"
+    | "INVALID_KEY"
+    | "BOT_INACTIVE"
+    | "INSUFFICIENT_CREDITS"
+    | "DOMAIN_NOT_ALLOWED";
   errorMessage?: string;
   apiKey?: any;
   bot?: any;
@@ -23,11 +28,23 @@ export interface KeyVerificationResult {
 }
 
 /**
+ * Normalizes and trims an incoming API key string (strips Bearer prefix and quotes).
+ */
+export function cleanIncomingKey(rawKey: string | null | undefined): string {
+  if (!rawKey) return "";
+  return rawKey
+    .trim()
+    .replace(/^Bearer\s+/i, "")
+    .replace(/^["']|["']$/g, "")
+    .trim();
+}
+
+/**
  * SHA-256 Hashing helper for raw API keys.
  * Ensures consistent key hashing across registration, verification, and database storage.
  */
 export function hashApiKey(rawKey: string): string {
-  return crypto.createHash("sha256").update(rawKey.trim()).digest("hex");
+  return crypto.createHash("sha256").update(cleanIncomingKey(rawKey)).digest("hex");
 }
 
 /**
@@ -67,14 +84,18 @@ export function normalizeDomain(domain: string): string {
  * Verification helper that hashes an incoming raw key and matches it against the database.
  * Validates key existence, bot active status, domain whitelist (CORS), and user credit balance.
  */
-export function isDomainAllowed(allowedDomains: string[] | string, originDomain?: string): boolean {
-  const domains: string[] = Array.isArray(allowedDomains)
-    ? allowedDomains
-    : typeof allowedDomains === "string"
-    ? allowedDomains.split(",").map((s) => s.trim())
-    : ["*"];
+export function isDomainAllowed(allowedDomains: string[] | string | null | undefined, originDomain?: string): boolean {
+  const domains: string[] = (
+    Array.isArray(allowedDomains)
+      ? allowedDomains
+      : typeof allowedDomains === "string"
+      ? allowedDomains.split(",")
+      : ["*"]
+  )
+    .map((s) => s.trim())
+    .filter(Boolean);
 
-  if (!domains || domains.length === 0 || domains.includes("*")) {
+  if (domains.length === 0 || domains.includes("*")) {
     return true; // Empty array or wildcard allows all origins
   }
 
@@ -109,12 +130,26 @@ export async function verifyApiKey(
   rawKey: string,
   options?: { originDomain?: string; botId?: string }
 ): Promise<KeyVerificationResult> {
-  const cleanKey = (rawKey || "").trim();
+  const cleanKey = cleanIncomingKey(rawKey);
+  const cleanBotId = (options?.botId || "").trim();
+  const isPlaceholderKey =
+    !cleanKey ||
+    cleanKey === "pk_live_YOUR_API_KEY" ||
+    cleanKey === "pk_live_preview_demo" ||
+    cleanKey.includes("YOUR_API_KEY");
+
+  if (!cleanKey && !cleanBotId) {
+    return {
+      valid: false,
+      errorCode: "MISSING_KEY",
+      errorMessage: "API key is missing. Please provide a valid data-bot-key in your widget script.",
+    };
+  }
 
   let apiKeyRecord: any = null;
 
   // 1. Try exact keyHash lookup (for full API keys)
-  if (cleanKey) {
+  if (cleanKey && !isPlaceholderKey) {
     const keyHash = hashApiKey(cleanKey);
     apiKeyRecord = await prisma.apiKey.findUnique({
       where: { keyHash },
@@ -124,10 +159,28 @@ export async function verifyApiKey(
       },
     });
 
-    // 2. If not found by hash, try finding by keyPrefix (e.g. preview from dashboard)
+    // 2. If not found by hash, try finding by exact keyPrefix (e.g. snippet copied from Widget Customizer)
     if (!apiKeyRecord && (cleanKey.startsWith("pk_") || cleanKey.startsWith("sk_"))) {
       apiKeyRecord = await prisma.apiKey.findFirst({
-        where: { keyPrefix: cleanKey },
+        where: {
+          keyPrefix: cleanKey,
+          ...(cleanBotId ? { botId: cleanBotId } : {}),
+        },
+        include: {
+          bot: true,
+          user: true,
+        },
+      });
+    }
+
+    // 3. If cleanKey is longer than 15 chars, also try matching its 15-char prefix (pk_live_ + 7 hex chars)
+    if (!apiKeyRecord && (cleanKey.startsWith("pk_live_") || cleanKey.startsWith("sk_live_")) && cleanKey.length >= 15) {
+      const prefix15 = cleanKey.slice(0, 15);
+      apiKeyRecord = await prisma.apiKey.findFirst({
+        where: {
+          keyPrefix: prefix15,
+          ...(cleanBotId ? { botId: cleanBotId } : {}),
+        },
         include: {
           bot: true,
           user: true,
@@ -136,24 +189,31 @@ export async function verifyApiKey(
     }
   }
 
-  // 3. Fallback for dashboard live preview: only when an explicit botId is provided
-  if (!apiKeyRecord && options?.botId && (cleanKey === "pk_live_preview_demo" || cleanKey.includes("preview"))) {
+  // 4. Fallback when an explicit botId is provided (e.g. dashboard preview or widget snippet with data-bot="<botId>")
+  if (!apiKeyRecord && cleanBotId) {
     const bot = await prisma.bot.findUnique({
-      where: { id: options.botId },
+      where: { id: cleanBotId },
       include: { user: true, apiKeys: true },
     });
 
-    if (bot && bot.apiKeys && bot.apiKeys.length > 0) {
-      const existingKey = bot.apiKeys[0];
+    if (bot) {
+      let existingKey = bot.apiKeys && bot.apiKeys.length > 0 ? bot.apiKeys[0] : null;
+      // If this bot had no API key in the database yet, auto-create a PUBLIC_WIDGET key for it
+      if (!existingKey) {
+        const generated = generateApiKey(KeyType.PUBLIC_WIDGET);
+        existingKey = await prisma.apiKey.create({
+          data: {
+            botId: bot.id,
+            userId: bot.userId,
+            keyPrefix: generated.keyPrefix,
+            keyHash: generated.keyHash,
+            type: KeyType.PUBLIC_WIDGET,
+            rateLimitPerMinute: 60,
+          },
+        });
+      }
       apiKeyRecord = {
-        id: existingKey.id,
-        botId: bot.id,
-        userId: bot.userId,
-        keyPrefix: existingKey.keyPrefix,
-        keyHash: existingKey.keyHash,
-        type: existingKey.type,
-        rateLimitPerMinute: existingKey.rateLimitPerMinute,
-        createdAt: existingKey.createdAt,
+        ...existingKey,
         bot: bot,
         user: bot.user,
       };
@@ -163,8 +223,10 @@ export async function verifyApiKey(
   if (!apiKeyRecord) {
     return {
       valid: false,
-      errorCode: "INVALID_KEY",
-      errorMessage: "Invalid API key",
+      errorCode: isPlaceholderKey ? "MISSING_KEY" : "INVALID_KEY",
+      errorMessage: isPlaceholderKey
+        ? "API key is missing or still set to placeholder 'pk_live_YOUR_API_KEY'. Please copy the full embed script from your NongGuide AI dashboard."
+        : "Invalid API key. Please verify your data-bot-key or generate a new API key in your NongGuide AI dashboard.",
     };
   }
 

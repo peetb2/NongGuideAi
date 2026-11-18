@@ -151,9 +151,24 @@ function WidgetCustomizerInner() {
             (k) => k.botId === targetBot.id && k.type === "PUBLIC_WIDGET"
           );
           if (matchingKey) {
-            setPublicApiKey(matchingKey.key || matchingKey.keyPrefix || "");
+            setPublicApiKey(matchingKey.rawKey || matchingKey.key || matchingKey.keyPrefix || "");
           } else if (targetBot.apiKeys && targetBot.apiKeys.length > 0) {
             setPublicApiKey(targetBot.apiKeys[0].keyPrefix);
+          } else {
+            // Auto-provision a PUBLIC_WIDGET key if this bot has none yet
+            try {
+              const createKeyRes = await fetch("/api/keys", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ botId: targetBot.id, type: "PUBLIC_WIDGET" }),
+              });
+              if (createKeyRes.ok) {
+                const createdData = await createKeyRes.json();
+                setPublicApiKey(createdData.rawKey || createdData.apiKey?.keyPrefix || "");
+              }
+            } catch {
+              // ignore
+            }
           }
         }
       } catch (err) {
@@ -202,13 +217,27 @@ function WidgetCustomizerInner() {
   };
 
   // Change selected bot
-  const handleSelectBot = (botId: string) => {
+  const handleSelectBot = async (botId: string) => {
     setSelectedBotId(botId);
     const found = bots.find((b) => b.id === botId);
     if (found) {
       applyBotConfig(found);
       if (found.apiKeys && found.apiKeys.length > 0) {
         setPublicApiKey(found.apiKeys[0].keyPrefix);
+      } else {
+        try {
+          const createKeyRes = await fetch("/api/keys", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ botId: found.id, type: "PUBLIC_WIDGET" }),
+          });
+          if (createKeyRes.ok) {
+            const createdData = await createKeyRes.json();
+            setPublicApiKey(createdData.rawKey || createdData.apiKey?.keyPrefix || "");
+          }
+        } catch {
+          // ignore
+        }
       }
     }
   };
@@ -445,14 +474,25 @@ function WidgetCustomizerInner() {
   };
 
   // Embed script snippet generator
-  // Resolve origin after mount so server and first client render match (avoids hydration mismatch)
-  const [originUrl, setOriginUrl] = useState("https://yourdomain.com");
+  const envAppUrl = (process.env.NEXT_PUBLIC_APP_URL || "").trim().replace(/\/+$/, "");
+  const initialOrigin =
+    envAppUrl && !envAppUrl.includes("localhost") && !envAppUrl.includes("127.0.0.1")
+      ? envAppUrl
+      : "https://nong-guide-ai.vercel.app";
+  const [originUrl, setOriginUrl] = useState(initialOrigin);
   useEffect(() => {
-    setOriginUrl(window.location.origin);
-  }, []);
+    const browserOrigin = window.location.origin.replace(/\/+$/, "");
+    if (!browserOrigin.includes("localhost") && !browserOrigin.includes("127.0.0.1")) {
+      setOriginUrl(browserOrigin);
+    } else if (envAppUrl && !envAppUrl.includes("localhost") && !envAppUrl.includes("127.0.0.1")) {
+      setOriginUrl(envAppUrl);
+    } else {
+      setOriginUrl(browserOrigin);
+    }
+  }, [envAppUrl]);
   const embedSnippet = `<script
   src="${originUrl}/widget.js"
-  data-bot-key="${publicApiKey || "pk_live_YOUR_API_KEY"}"
+  data-bot-key="${publicApiKey || "pk_live_YOUR_API_KEY"}"${selectedBotId ? `\n  data-bot="${selectedBotId}"` : ""}
   data-position="${config.position}"${config.showSources ? '\n  data-show-sources="true"' : ""}
   defer
 ></script>`;

@@ -11,11 +11,12 @@ import {
   resolveOwnerPrompt,
 } from "@/lib/rag-engine";
 
-function corsHeaders(origin?: string) {
+function corsHeaders(_origin?: string) {
   return {
-    "Access-Control-Allow-Origin": origin || "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key, Accept, Cache-Control, X-Requested-With",
+    "Access-Control-Max-Age": "86400",
   };
 }
 
@@ -31,8 +32,32 @@ export async function POST(req: NextRequest) {
   const origin = req.headers.get("origin") || req.headers.get("referer") || undefined;
   try {
     const body = await req.json().catch(() => ({}));
-    const key = body.botKey || body.publicKey || body.apiKey || "";
-    const botId = body.botId;
+    const headerApiKey =
+      req.headers.get("x-api-key") ||
+      req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+      "";
+    const queryApiKey =
+      req.nextUrl.searchParams.get("key") ||
+      req.nextUrl.searchParams.get("apiKey") ||
+      req.nextUrl.searchParams.get("publicKey") ||
+      req.nextUrl.searchParams.get("botKey") ||
+      "";
+    const key = (
+      body.botKey ||
+      body.publicKey ||
+      body.apiKey ||
+      body.key ||
+      headerApiKey ||
+      queryApiKey ||
+      ""
+    ).trim();
+    const botId = (
+      body.botId ||
+      body.bot ||
+      req.nextUrl.searchParams.get("botId") ||
+      req.nextUrl.searchParams.get("bot") ||
+      ""
+    ).trim();
     const message = body.message;
     const isStreamRequested = Boolean(
       body.stream === true ||
@@ -48,7 +73,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify key, CORS domain, and active status
-    const verification = await verifyApiKey(key, { originDomain: origin, botId });
+    const verification = await verifyApiKey(key, { originDomain: origin, botId: botId || undefined });
     if (!verification.valid) {
       const statusCode = verification.errorCode === "DOMAIN_NOT_ALLOWED" ? 403 : 401;
       return NextResponse.json(

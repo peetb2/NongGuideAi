@@ -62,7 +62,12 @@ function AdminDashboardContent() {
   const [dailyUsageStats, setDailyUsageStats] = useState<
     { date: string; total: number; success: number }[]
   >([]);
-  const [appOrigin, setAppOrigin] = useState("http://localhost:3000");
+  const envAppUrl = (process.env.NEXT_PUBLIC_APP_URL || "").trim().replace(/\/+$/, "");
+  const [appOrigin, setAppOrigin] = useState(
+    envAppUrl && !envAppUrl.includes("localhost") && !envAppUrl.includes("127.0.0.1")
+      ? envAppUrl
+      : "https://nong-guide-ai.vercel.app"
+  );
 
   useEffect(() => {
     if (tabParam === "bots") {

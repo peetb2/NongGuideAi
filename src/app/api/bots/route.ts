@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthSession } from "@/lib/auth";
+import { generateApiKey, KeyType } from "@/lib/api-keys";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -68,7 +69,24 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true, bot: newBot });
+    // Automatically provision an initial PUBLIC_WIDGET API key so the bot's widget embed code works out of the box
+    const generatedKey = generateApiKey(KeyType.PUBLIC_WIDGET);
+    await prisma.apiKey.create({
+      data: {
+        botId: newBot.id,
+        userId: session.userId,
+        keyPrefix: generatedKey.keyPrefix,
+        keyHash: generatedKey.keyHash,
+        type: KeyType.PUBLIC_WIDGET,
+        rateLimitPerMinute: 60,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      bot: newBot,
+      initialApiKey: generatedKey.rawKey,
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || "Failed to create bot" }, { status: 500 });
   }
