@@ -69,22 +69,71 @@ export function generateApiKey(type: KeyType = KeyType.PUBLIC_WIDGET): Generated
 }
 
 /**
- * Helper to normalize domain strings for CORS checking (e.g. removes protocol & port if needed)
+ * Helper to normalize domain strings for CORS checking (strips protocol, paths, trailing slashes, and ports).
+ * Preserves leading wildcard prefix like "*.example.com".
  */
 export function normalizeDomain(domain: string): string {
+  const trimmed = domain.trim().toLowerCase().replace(/\/+$/, "");
+  if (!trimmed || trimmed === "*") return trimmed;
+
+  const isWildcardSubdomain = trimmed.startsWith("*.");
+  const candidate = isWildcardSubdomain ? trimmed.slice(2) : trimmed;
+
   try {
-    const url = new URL(domain.includes("://") ? domain : `https://${domain}`);
-    return url.hostname.toLowerCase();
+    const url = new URL(candidate.includes("://") ? candidate : `https://${candidate}`);
+    const host = url.hostname.toLowerCase();
+    return isWildcardSubdomain ? `*.${host}` : host;
   } catch {
-    return domain.trim().toLowerCase();
+    const cleaned = candidate
+      .replace(/^https?:\/\//, "")
+      .split("/")[0]
+      .split(":")[0]
+      .trim();
+    return isWildcardSubdomain ? `*.${cleaned}` : cleaned;
   }
 }
 
 /**
- * Verification helper that hashes an incoming raw key and matches it against the database.
- * Validates key existence, bot active status, domain whitelist (CORS), and user credit balance.
+ * Checks whether an origin belongs to the app itself (dashboard Live Preview, Vercel preview/prod, or same Host).
  */
-export function isDomainAllowed(allowedDomains: string[] | string | null | undefined, originDomain?: string): boolean {
+function isAppOwnOrigin(normalizedOrigin: string, requestHost?: string): boolean {
+  if (
+    normalizedOrigin === "localhost" ||
+    normalizedOrigin === "127.0.0.1" ||
+    normalizedOrigin.endsWith(".vercel.app")
+  ) {
+    return true;
+  }
+
+  const ownCandidates = [
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.NEXTAUTH_URL,
+    process.env.VERCEL_URL,
+    requestHost,
+  ].filter((v): v is string => Boolean(v && v.trim().length > 0));
+
+  for (const candidate of ownCandidates) {
+    const normalizedCandidate = normalizeDomain(candidate);
+    if (normalizedCandidate && normalizedOrigin === normalizedCandidate) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Verification helper that checks an incoming origin against a bot's allowedDomains whitelist.
+ * - Empty allowedDomains or "*" allows all origins.
+ * - The app's own domain (NEXT_PUBLIC_APP_URL, NEXTAUTH_URL, *.vercel.app, or request Host) is always allowed
+ *   so Dashboard Live Preview works out-of-the-box for every bot.
+ * - Protocols and trailing slashes are normalized on both sides.
+ */
+export function isDomainAllowed(
+  allowedDomains: string[] | string | null | undefined,
+  originDomain?: string,
+  requestHost?: string
+): boolean {
   const domains: string[] = (
     Array.isArray(allowedDomains)
       ? allowedDomains
@@ -105,16 +154,11 @@ export function isDomainAllowed(allowedDomains: string[] | string | null | undef
 
   const normalizedOrigin = normalizeDomain(originDomain);
 
-  // Always allow local development and dashboard preview
-  if (
-    normalizedOrigin === "localhost" ||
-    normalizedOrigin.startsWith("localhost:") ||
-    normalizedOrigin === "127.0.0.1" ||
-    normalizedOrigin.startsWith("127.0.0.1:")
-  ) {
+  // Always allow local development, Vercel deployments, and same-host dashboard Live Preview
+  if (isAppOwnOrigin(normalizedOrigin, requestHost)) {
     return true;
   }
-  
+
   return domains.some((domain) => {
     const normalizedAllowed = normalizeDomain(domain);
     if (normalizedAllowed === "*") return true;
@@ -128,7 +172,7 @@ export function isDomainAllowed(allowedDomains: string[] | string | null | undef
 
 export async function verifyApiKey(
   rawKey: string,
-  options?: { originDomain?: string; botId?: string }
+  options?: { originDomain?: string; requestHost?: string; botId?: string }
 ): Promise<KeyVerificationResult> {
   const cleanKey = cleanIncomingKey(rawKey);
   const cleanBotId = (options?.botId || "").trim();
@@ -256,7 +300,11 @@ export async function verifyApiKey(
 
   // Check CORS Whitelisted Domains if origin is specified or required for PUBLIC_WIDGET
   if (apiKeyRecord.type === KeyType.PUBLIC_WIDGET && options?.originDomain) {
-    const isAllowed = isDomainAllowed(apiKeyRecord.bot.allowedDomains, options.originDomain);
+    const isAllowed = isDomainAllowed(
+      apiKeyRecord.bot.allowedDomains,
+      options.originDomain,
+      options.requestHost
+    );
     if (!isAllowed) {
       return {
         valid: false,

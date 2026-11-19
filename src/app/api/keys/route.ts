@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
     // Verify bot belongs to user
     const bot = await prisma.bot.findUnique({
       where: { id: botId },
-      select: { id: true, userId: true },
+      select: { id: true, userId: true, allowedDomains: true },
     });
 
     if (!bot) {
@@ -71,6 +71,14 @@ export async function POST(req: NextRequest) {
 
     if (bot.userId !== session.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Ensure bot has a valid allowedDomains default ("*") if empty
+    if (!bot.allowedDomains || !bot.allowedDomains.trim()) {
+      await prisma.bot.update({
+        where: { id: botId },
+        data: { allowedDomains: "*" },
+      });
     }
 
     // Generate raw key and SHA-256 hash

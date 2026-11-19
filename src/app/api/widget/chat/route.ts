@@ -73,7 +73,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify key, CORS domain, and active status
-    const verification = await verifyApiKey(key, { originDomain: origin, botId: botId || undefined });
+    const requestHost =
+      req.headers.get("x-forwarded-host") || req.headers.get("host") || req.nextUrl.host || undefined;
+    const verification = await verifyApiKey(key, {
+      originDomain: origin,
+      requestHost,
+      botId: botId || undefined,
+    });
     if (!verification.valid) {
       const statusCode = verification.errorCode === "DOMAIN_NOT_ALLOWED" ? 403 : 401;
       return NextResponse.json(

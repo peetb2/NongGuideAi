@@ -46,8 +46,11 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  const requestHost =
+    req.headers.get("x-forwarded-host") || req.headers.get("host") || req.nextUrl.host || undefined;
   const verification = await verifyApiKey(key, {
     originDomain: origin,
+    requestHost,
     botId: botId || undefined,
   });
   if (!verification.valid) {

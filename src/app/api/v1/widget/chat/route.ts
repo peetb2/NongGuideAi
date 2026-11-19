@@ -117,8 +117,11 @@ export async function POST(req: NextRequest) {
     );
 
     // 2. Validate API key against DB & active status
+    const requestHost =
+      req.headers.get("x-forwarded-host") || req.headers.get("host") || req.nextUrl.host || undefined;
     const keyVerification = await verifyApiKey(rawKey, {
       originDomain: originHeader,
+      requestHost,
       botId: effectiveBotId || undefined,
     });
     if (!keyVerification.valid) {
