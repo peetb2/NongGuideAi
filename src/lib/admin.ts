@@ -1,12 +1,14 @@
 import { prisma } from "./prisma";
 import { getCurrentUser } from "./auth";
 import { isAdminUser } from "./admin-roles";
+import { normalizePlanId, PlanId, PLANS } from "./plans";
 import bcrypt from "bcryptjs";
 
 export interface AdminUserListItem {
   id: string;
   email: string;
   role: string;
+  plan: PlanId;
   creditBalance: number;
   isActive: boolean;
   createdAt: string;
@@ -110,13 +112,15 @@ export async function getAdminUsersList(searchQuery?: string, roleFilter?: strin
     }
 
     const role = u.role || (isAdminUser(u) ? "ADMIN" : "USER");
+    const plan = normalizePlanId(u.plan);
     const isActive = u.isActive !== undefined && u.isActive !== null ? Boolean(u.isActive) : true;
 
     return {
       id: u.id,
       email: u.email,
       role: role,
-      creditBalance: typeof u.creditBalance === "number" ? u.creditBalance : 50,
+      plan,
+      creditBalance: typeof u.creditBalance === "number" ? u.creditBalance : 100,
       isActive,
       createdAt: u.createdAt instanceof Date ? u.createdAt.toISOString() : String(u.createdAt),
       updatedAt: u.updatedAt instanceof Date ? u.updatedAt.toISOString() : String(u.updatedAt),
@@ -161,6 +165,8 @@ export async function updateAdminUser(
   data: {
     creditBalance?: number;
     creditAdjustment?: number;
+    plan?: PlanId;
+    grantPlanCredits?: boolean;
     role?: "USER" | "ADMIN";
     isActive?: boolean;
     password?: string;
@@ -199,6 +205,24 @@ export async function updateAdminUser(
     });
   }
 
+  // Handle plan update (+ optional plan credit grant)
+  if (data.plan) {
+    const normalizedPlan = normalizePlanId(data.plan);
+    const updateData: { plan: string; creditBalance?: number } = { plan: normalizedPlan };
+    if (data.grantPlanCredits) {
+      const planCredits = PLANS[normalizedPlan].credits;
+      const latest = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { creditBalance: true },
+      });
+      updateData.creditBalance = (latest?.creditBalance || 0) + planCredits;
+    }
+    await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+    });
+  }
+
   // Handle role and isActive via Prisma Client (PostgreSQL compatible)
   if (data.role) {
     await prisma.user.update({
@@ -234,6 +258,7 @@ export async function createAdminUser(data: {
   email: string;
   password: string;
   creditBalance?: number;
+  plan?: PlanId;
   role?: "USER" | "ADMIN";
 }) {
   const email = data.email.trim().toLowerCase();
@@ -246,7 +271,11 @@ export async function createAdminUser(data: {
   }
 
   const passwordHash = await bcrypt.hash(data.password.trim(), 10);
-  const creditBalance = typeof data.creditBalance === "number" ? Math.max(0, data.creditBalance) : 50;
+  const plan = normalizePlanId(data.plan);
+  const creditBalance =
+    typeof data.creditBalance === "number"
+      ? Math.max(0, data.creditBalance)
+      : PLANS[plan].credits;
 
   const role = data.role === "ADMIN" ? "ADMIN" : "USER";
   const user = await prisma.user.create({
@@ -254,6 +283,7 @@ export async function createAdminUser(data: {
       email,
       passwordHash,
       creditBalance,
+      plan,
       role,
     },
   });
@@ -262,6 +292,7 @@ export async function createAdminUser(data: {
     id: user.id,
     email: user.email,
     creditBalance: user.creditBalance,
+    plan: normalizePlanId(user.plan),
     role: user.role,
     createdAt: user.createdAt,
   };

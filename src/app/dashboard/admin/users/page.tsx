@@ -7,6 +7,7 @@ import AdminUserSidePanel from "@/components/dashboard/AdminUserSidePanel";
 import { SkeletonDemo } from "@/components/ui/skeleton";
 import { AdminUserListItem } from "@/lib/admin";
 import { fetchCurrentUser, UserSessionData } from "@/lib/client-auth";
+import { normalizePlanId, PlanId, PLANS } from "@/lib/plans";
 import Link from "next/link";
 import {
   Users,
@@ -27,6 +28,7 @@ import {
   UserCheck,
   UserX,
   ExternalLink,
+  Crown,
 } from "lucide-react";
 
 export default function AdminUsersPage() {
@@ -42,6 +44,7 @@ export default function AdminUsersPage() {
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | "ADMIN" | "USER">("all");
+  const [planFilter, setPlanFilter] = useState<"all" | PlanId>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "suspended">("all");
 
   // Side Panel state
@@ -107,13 +110,17 @@ export default function AdminUsersPage() {
       if (roleFilter !== "all" && u.role !== roleFilter) {
         return false;
       }
+      // Plan
+      if (planFilter !== "all" && normalizePlanId(u.plan) !== planFilter) {
+        return false;
+      }
       // Status
       if (statusFilter === "active" && !u.isActive) return false;
       if (statusFilter === "suspended" && u.isActive) return false;
 
       return true;
     });
-  }, [users, searchQuery, roleFilter, statusFilter]);
+  }, [users, searchQuery, roleFilter, planFilter, statusFilter]);
 
   // Aggregate stats
   const stats = useMemo(() => {
@@ -152,6 +159,24 @@ export default function AdminUsersPage() {
           }
         } catch {}
       }, 300);
+    }
+  };
+
+  // Quick plan switch (Standard <-> Pro Max)
+  const handleQuickPlanSwitch = async (userId: string, nextPlan: PlanId, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: nextPlan }),
+      });
+      if (res.ok) {
+        showToast(`เปลี่ยนแพ็กเกจเป็น ${PLANS[nextPlan].thaiName} สำเร็จ`);
+        loadUsers();
+      }
+    } catch {
+      showToast("ล้มเหลวในการเปลี่ยนแพ็กเกจ");
     }
   };
 
@@ -350,6 +375,17 @@ export default function AdminUsersPage() {
                     </button>
                   </div>
 
+                  {/* Plan filter */}
+                  <select
+                    value={planFilter}
+                    onChange={(e) => setPlanFilter(e.target.value as any)}
+                    className="px-3 py-1.5 text-xs rounded-xl border border-borderLight bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-brandGreen/30"
+                  >
+                    <option value="all">แพ็กเกจ: ทั้งหมด</option>
+                    <option value="STANDARD">Standard</option>
+                    <option value="PRO_MAX">Pro Max</option>
+                  </select>
+
                   {/* Status filter */}
                   <select
                     value={statusFilter}
@@ -406,6 +442,7 @@ export default function AdminUsersPage() {
                       <thead className="bg-slate-50/80 text-textMuted font-semibold border-b border-borderLight uppercase tracking-wider text-[11px]">
                         <tr>
                           <th className="py-3.5 px-4 sm:px-6">ผู้ใช้งาน (User)</th>
+                          <th className="py-3.5 px-4">แพ็กเกจ (Plan)</th>
                           <th className="py-3.5 px-4">สิทธิ์ (Role)</th>
                           <th className="py-3.5 px-4">สถานะ</th>
                           <th className="py-3.5 px-4">เครดิต (Credits)</th>
@@ -444,6 +481,40 @@ export default function AdminUsersPage() {
                                       {u.id}
                                     </span>
                                   </div>
+                                </div>
+                              </td>
+
+                              {/* Plan */}
+                              <td className="py-3.5 px-4">
+                                <div className="flex items-center gap-1.5">
+                                  {normalizePlanId(u.plan) === "PRO_MAX" ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#334539] text-amber-200 border border-[#46624D]">
+                                      <Crown className="w-3 h-3 text-amber-300" />
+                                      Pro Max
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-sage-100 text-sage-800 border border-sage-200">
+                                      Standard
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={(e) =>
+                                      handleQuickPlanSwitch(
+                                        u.id,
+                                        normalizePlanId(u.plan) === "PRO_MAX" ? "STANDARD" : "PRO_MAX",
+                                        e
+                                      )
+                                    }
+                                    title={
+                                      normalizePlanId(u.plan) === "PRO_MAX"
+                                        ? "สลับเป็น Standard"
+                                        : "อัปเกรดเป็น Pro Max"
+                                    }
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-semibold border border-slate-200"
+                                  >
+                                    {normalizePlanId(u.plan) === "PRO_MAX" ? "→ Std" : "→ Pro Max"}
+                                  </button>
                                 </div>
                               </td>
 

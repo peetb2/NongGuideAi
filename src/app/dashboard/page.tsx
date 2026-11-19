@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import { Skeleton, SkeletonDemo } from "@/components/ui/skeleton";
+import { PLAN_LIST, getPlanConfig, normalizePlanId, PlanId } from "@/lib/plans";
+import { Check, Crown, Sparkles, ShieldCheck } from "lucide-react";
 
 type TabType = "dashboard" | "bots" | "apikeys" | "logs" | "billing";
 type BotSubViewType = "form" | "list";
@@ -55,11 +57,16 @@ function AdminDashboardContent() {
   const [apiSubView, setApiSubView] = useState<ApiSubViewType>("create");
 
   const [userCredits, setUserCredits] = useState<number>(100);
+  const [userPlan, setUserPlan] = useState<PlanId>("STANDARD");
+  const [isSwitchingPlan, setIsSwitchingPlan] = useState<boolean>(false);
   const [totalApiRequests, setTotalApiRequests] = useState<number>(0);
   const [isDashboardLoading, setIsDashboardLoading] = useState<boolean>(true);
   const [currentUser, setCurrentUser] = useState<{
+    id?: string;
     email: string;
     creditBalance: number;
+    plan?: PlanId;
+    isAdmin?: boolean;
   } | null>(null);
   const [dailyUsageStats, setDailyUsageStats] = useState<
     { date: string; total: number; success: number }[]
@@ -100,6 +107,9 @@ function AdminDashboardContent() {
           setCurrentUser(data.user);
           if (typeof data.user.creditBalance === "number") {
             setUserCredits(data.user.creditBalance);
+          }
+          if (data.user.plan) {
+            setUserPlan(normalizePlanId(data.user.plan));
           }
         }
       })
@@ -155,6 +165,9 @@ function AdminDashboardContent() {
         if (data) {
           if (typeof data.creditBalance === "number") {
             setUserCredits(data.creditBalance);
+          }
+          if (data.plan) {
+            setUserPlan(normalizePlanId(data.plan));
           }
           if (typeof data.totalMessages === "number") {
             setTotalApiRequests(data.totalMessages);
@@ -1545,37 +1558,87 @@ function AdminDashboardContent() {
           {/* ========================================================
               VIEW 5: การชำระเงิน (Billing)
              ======================================================== */}
-          {currentTab === "billing" && (
+          {currentTab === "billing" && (() => {
+            const activePlan = getPlanConfig(userPlan);
+            const isProMax = activePlan.id === "PRO_MAX";
+            const creditPercent = Math.min(100, Math.max(0, Math.round((userCredits / activePlan.credits) * 100)));
+            const botPercent = Math.min(100, Math.round((botsData.length / activePlan.maxBots) * 100));
+
+            const handlePlanAction = async (targetPlan: PlanId) => {
+              if (targetPlan === userPlan) return;
+              if (currentUser?.isAdmin && currentUser.id) {
+                setIsSwitchingPlan(true);
+                try {
+                  const res = await fetch(`/api/admin/users/${currentUser.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ plan: targetPlan }),
+                  });
+                  if (!res.ok) throw new Error("เปลี่ยนแพ็กเกจไม่สำเร็จ");
+                  setUserPlan(targetPlan);
+                  showToast(`เปลี่ยนแพ็กเกจเป็น ${getPlanConfig(targetPlan).thaiName} สำเร็จ`);
+                } catch {
+                  showToast("เกิดข้อผิดพลาดในการเปลี่ยนแพ็กเกจ");
+                } finally {
+                  setIsSwitchingPlan(false);
+                }
+              } else {
+                showToast("กรุณาติดต่อผู้ดูแลระบบเพื่ออัปเกรดเป็น Pro Max Plan");
+                router.push("/contact");
+              }
+            };
+
+            return (
             <section className="space-y-6 animate-fade-in">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 <div className="lg:col-span-8 bg-cardBg rounded-2xl p-6 border border-borderLight shadow-sm space-y-6">
-                  <div className="flex items-start justify-between">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <span className="text-[11px] text-brandGreen font-semibold bg-brandGreenLight px-2.5 py-0.5 rounded-full inline-block mb-1.5">
+                      <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 mb-1.5 ${
+                        isProMax
+                          ? "bg-[#334539] text-emerald-100"
+                          : "bg-brandGreenLight text-brandGreen"
+                      }`}>
+                        {isProMax && <Crown className="w-3 h-3 text-amber-300" />}
                         แพ็กเกจปัจจุบัน
                       </span>
-                      <h2 className="text-2xl font-extrabold text-textMain">Starter Plan</h2>
-                      <p className="text-xs text-textMuted mt-0.5">ใช้งานฟรี &bull; 100 เครดิตเริ่มต้น</p>
+                      <h2 className="text-2xl font-extrabold text-textMain flex items-center gap-2">
+                        {activePlan.thaiName}
+                      </h2>
+                      <p className="text-xs text-textMuted mt-0.5">
+                        {activePlan.priceLabel} &bull; {activePlan.credits.toLocaleString()} เครดิต &bull; สูงสุด {activePlan.maxBots} บอท
+                      </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => showToast("แพ็กเกจ Enterprise และระบบชำระเงินออนไลน์จะเปิดให้บริการเร็วๆ นี้")}
-                      className="text-xs font-semibold px-4 py-2 border border-borderLight rounded-xl text-textMain hover:bg-slate-50 transition shadow-sm cursor-pointer"
-                    >
-                      เปลี่ยนแพ็กเกจ
-                    </button>
+                    {currentUser?.isAdmin ? (
+                      <Link
+                        href="/dashboard/admin/users"
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-xl bg-[#334539] text-white hover:bg-[#46624D] transition shadow-sm"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        จัดการแพ็กเกจผู้ใช้ (Admin)
+                      </Link>
+                    ) : (
+                      <a
+                        href="#plan-comparison"
+                        className="text-xs font-semibold px-4 py-2 border border-borderLight rounded-xl text-textMain hover:bg-slate-50 transition shadow-sm cursor-pointer"
+                      >
+                        เปรียบเทียบแพ็กเกจ
+                      </a>
+                    )}
                   </div>
 
                   <div className="space-y-5 pt-2">
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-medium text-textMain">API credits</span>
-                        <span className="font-mono text-textMuted">{userCredits} / 100 เครดิตคงเหลือ</span>
+                        <span className="font-mono text-textMuted">
+                          {userCredits.toLocaleString()} / {activePlan.credits.toLocaleString()} เครดิตคงเหลือ
+                        </span>
                       </div>
                       <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                         <div
                           className="bg-brandGreen h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${Math.min(100, Math.max(0, userCredits))}%` }}
+                          style={{ width: `${creditPercent}%` }}
                         ></div>
                       </div>
                       <div className="text-[11px] text-textMuted">คำขอที่ถูกเรียกใช้จริงทั้งหมด: {totalApiRequests.toLocaleString()} ครั้ง</div>
@@ -1584,26 +1647,32 @@ function AdminDashboardContent() {
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-medium text-textMain">Bot seats</span>
-                        <span className="font-mono text-textMuted">{botsData.length} / 5 บอท</span>
+                        <span className="font-mono text-textMuted">{botsData.length} / {activePlan.maxBots} บอท</span>
                       </div>
                       <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                         <div
                           className="bg-brandGreen h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${Math.min(100, (botsData.length / 5) * 100)}%` }}
+                          style={{ width: `${botPercent}%` }}
                         ></div>
                       </div>
-                      <div className="text-[11px] text-textMuted">สามารถสร้างได้อีก {Math.max(0, 5 - botsData.length)} บอท</div>
+                      <div className="text-[11px] text-textMuted">
+                        สามารถสร้างได้อีก {Math.max(0, activePlan.maxBots - botsData.length)} บอท
+                      </div>
                     </div>
 
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium text-textMain">Vector Knowledge Storage</span>
-                        <span className="font-mono text-textMuted">Active (Embedded)</span>
+                        <span className="font-medium text-textMain">Rate Limit &amp; Vector Knowledge Storage</span>
+                        <span className="font-mono text-textMuted">{activePlan.rateLimitPerMinute} req/min • Active</span>
                       </div>
                       <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                        <div className="bg-brandGreen h-2 rounded-full" style={{ width: "25%" }}></div>
+                        <div className="bg-brandGreen h-2 rounded-full" style={{ width: isProMax ? "85%" : "30%" }}></div>
                       </div>
-                      <div className="text-[11px] text-textMuted">ระบบจัดเก็บฐานความรู้เวกเตอร์แบบเรียลไทม์</div>
+                      <div className="text-[11px] text-textMuted">
+                        {isProMax
+                          ? "รองรับโมเดลขั้นสูง (Gemini 3.8 Flash / 2.5 Pro) และจัดเก็บเวกเตอร์ไม่จำกัด"
+                          : "ระบบจัดเก็บฐานความรู้เวกเตอร์แบบเรียลไทม์ (Standard Tier)"}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1612,38 +1681,199 @@ function AdminDashboardContent() {
                   <div className="bg-cardBg rounded-2xl p-6 border border-borderLight shadow-sm space-y-4">
                     <div>
                       <span className="text-xs text-textMuted font-medium">ค่าใช้จ่ายรอบนี้</span>
-                      <div className="text-3xl font-extrabold text-textMain mt-1">฿0</div>
-                      <p className="text-[11px] text-textMuted mt-1">Starter Tier &bull; ใช้งานฟรีไม่มีค่าบริการรายเดือน</p>
+                      <div className="text-3xl font-extrabold text-textMain mt-1">
+                        {activePlan.priceLabel}
+                        {isProMax && <span className="text-sm font-medium text-textMuted ml-1">/ เดือน</span>}
+                      </div>
+                      <p className="text-[11px] text-textMuted mt-1">{activePlan.billingCycle}</p>
                     </div>
 
                     <div className="space-y-2 pt-2 border-t border-borderLight text-xs">
                       <div className="flex items-center justify-between text-textMuted">
-                        <span>Base plan</span>
-                        <span className="font-medium text-textMain">฿0</span>
+                        <span>Base plan ({activePlan.name})</span>
+                        <span className="font-medium text-textMain">{activePlan.priceLabel}</span>
                       </div>
                       <div className="flex items-center justify-between text-textMuted">
-                        <span>Model usage</span>
-                        <span className="font-medium text-emerald-600 font-medium">ฟรี (Starter)</span>
+                        <span>Credits allowance</span>
+                        <span className="font-medium text-emerald-600">{activePlan.credits.toLocaleString()} เครดิต</span>
                       </div>
                       <div className="flex items-center justify-between text-textMuted">
-                        <span>Storage add-on</span>
-                        <span className="font-medium text-emerald-600 font-medium">ฟรี</span>
+                        <span>Max bot seats</span>
+                        <span className="font-medium text-textMain">{activePlan.maxBots} บอท</span>
                       </div>
                     </div>
                   </div>
 
                   <div className="bg-cardBg rounded-2xl p-5 border border-borderLight shadow-sm space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-textMain">วิธีชำระเงิน</span>
+                      <span className="text-xs font-bold text-textMain">การจัดการแพ็กเกจ</span>
                     </div>
 
-                    <div className="p-3 bg-slate-50 rounded-xl text-xs text-textMuted flex items-center gap-2">
-                      <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="p-3 bg-slate-50 rounded-xl text-xs text-textMuted flex items-start gap-2 leading-relaxed">
+                      <svg className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      <span>ไม่มีการผูกบัตรเครดิต (ใช้แพ็กเกจฟรี Starter Plan)</span>
+                      <span>
+                        {isProMax
+                          ? "บัญชีของคุณเปิดใช้งาน Pro Max Plan เรียบร้อยแล้ว สามารถใช้งานเครดิตและบอทได้เต็มประสิทธิภาพ"
+                          : "ต้องการเครดิตและจำนวนบอทมากขึ้น? อัปเกรดเป็น Pro Max Plan ได้ผ่านผู้ดูแลระบบ"}
+                      </span>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* 2-Plan Comparison Cards: Standard vs Pro Max */}
+              <div id="plan-comparison" className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-base font-bold text-textMain">เลือกแพ็กเกจที่เหมาะกับธุรกิจของคุณ</h3>
+                    <p className="text-xs text-textMuted mt-0.5">
+                      เปรียบเทียบสิทธิประโยชน์ระหว่าง Standard และ Pro Max Plan
+                    </p>
+                  </div>
+                  {currentUser?.isAdmin && (
+                    <Link
+                      href="/dashboard/admin/users"
+                      className="text-xs font-semibold text-brandGreen hover:underline inline-flex items-center gap-1"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      ไปหน้า Admin จัดการแพ็กเกจให้ผู้ใช้อื่น &rarr;
+                    </Link>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {PLAN_LIST.map((plan) => {
+                    const isCurrent = userPlan === plan.id;
+                    const isHighlighted = Boolean(plan.highlighted);
+                    return (
+                      <div
+                        key={plan.id}
+                        className={`relative rounded-2xl p-6 border transition-all flex flex-col justify-between ${
+                          isHighlighted
+                            ? "bg-gradient-to-br from-[#334539] via-[#2C3E32] to-[#1F2F24] text-white border-[#46624D] shadow-lg"
+                            : "bg-cardBg text-textMain border-borderLight shadow-sm"
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-3">
+                            <span
+                              className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full ${
+                                isHighlighted
+                                  ? "bg-amber-400/20 text-amber-200 border border-amber-300/30"
+                                  : "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              {isHighlighted ? <Crown className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
+                              {plan.badge}
+                            </span>
+
+                            {isCurrent && (
+                              <span
+                                className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
+                                  isHighlighted
+                                    ? "bg-emerald-400/20 text-emerald-200 border border-emerald-300/30"
+                                    : "bg-brandGreenLight text-brandGreen"
+                                }`}
+                              >
+                                แพ็กเกจปัจจุบัน
+                              </span>
+                            )}
+                          </div>
+
+                          <h4 className="text-2xl font-extrabold tracking-tight">{plan.thaiName}</h4>
+                          <p
+                            className={`text-xs mt-1 leading-relaxed ${
+                              isHighlighted ? "text-sage-200/90" : "text-textMuted"
+                            }`}
+                          >
+                            {plan.description}
+                          </p>
+
+                          <div className="mt-5 pb-5 border-b border-current/10 flex items-baseline gap-1.5">
+                            <span className="text-4xl font-extrabold">{plan.priceLabel}</span>
+                            <span className={`text-xs ${isHighlighted ? "text-sage-200/80" : "text-textMuted"}`}>
+                              {plan.priceThb > 0 ? "/ เดือน" : "/ ฟรีตลอดไป"}
+                            </span>
+                          </div>
+
+                          {/* Key Highlight Pills */}
+                          <div className="grid grid-cols-2 gap-2.5 mt-4">
+                            <div
+                              className={`rounded-xl p-3 border ${
+                                isHighlighted
+                                  ? "bg-white/10 border-white/15"
+                                  : "bg-slate-50 border-borderLight/70"
+                              }`}
+                            >
+                              <div className={`text-[10px] ${isHighlighted ? "text-sage-200" : "text-textMuted"}`}>
+                                API Credits
+                              </div>
+                              <div className="text-base font-extrabold mt-0.5">
+                                {plan.credits.toLocaleString()}
+                              </div>
+                            </div>
+                            <div
+                              className={`rounded-xl p-3 border ${
+                                isHighlighted
+                                  ? "bg-white/10 border-white/15"
+                                  : "bg-slate-50 border-borderLight/70"
+                              }`}
+                            >
+                              <div className={`text-[10px] ${isHighlighted ? "text-sage-200" : "text-textMuted"}`}>
+                                จำนวนบอทสูงสุด
+                              </div>
+                              <div className="text-base font-extrabold mt-0.5">
+                                {plan.maxBots} บอท
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Feature List */}
+                          <ul className="mt-5 space-y-2.5 text-xs">
+                            {plan.features.map((feat) => (
+                              <li key={feat} className="flex items-start gap-2">
+                                <Check
+                                  className={`w-4 h-4 shrink-0 mt-0.5 ${
+                                    isHighlighted ? "text-emerald-300" : "text-brandGreen"
+                                  }`}
+                                />
+                                <span className={isHighlighted ? "text-white/90" : "text-textMain"}>
+                                  {feat}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div className="mt-6 pt-2">
+                          <button
+                            type="button"
+                            disabled={isCurrent || isSwitchingPlan}
+                            onClick={() => handlePlanAction(plan.id)}
+                            className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition shadow-sm ${
+                              isCurrent
+                                ? isHighlighted
+                                  ? "bg-white/15 text-white/70 cursor-default"
+                                  : "bg-slate-100 text-slate-400 cursor-default"
+                                : isHighlighted
+                                ? "bg-white text-[#1F2F24] hover:bg-sage-50 cursor-pointer"
+                                : "bg-brandGreen text-white hover:bg-brandGreenHover cursor-pointer"
+                            }`}
+                          >
+                            {isCurrent
+                              ? "กำลังใช้งานแพ็กเกจนี้อยู่"
+                              : currentUser?.isAdmin
+                              ? `สลับเป็น ${plan.name} (Admin)`
+                              : plan.id === "PRO_MAX"
+                              ? "อัปเกรดเป็น Pro Max"
+                              : "เปลี่ยนเป็น Standard"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1654,11 +1884,14 @@ function AdminDashboardContent() {
                 </div>
 
                 <div className="p-8 text-center text-xs text-textMuted">
-                  ยังไม่มีรายการใบแจ้งหนี้ (บัญชีเริ่มต้นฟรี Starter Plan)
+                  {isProMax
+                    ? "บัญชี Pro Max Plan ของคุณเปิดใช้งานโดยผู้ดูแลระบบ (ไม่มีรอบบิลค้างชำระ)"
+                    : "ยังไม่มีรายการใบแจ้งหนี้ (บัญชีเริ่มต้นฟรี Standard Plan)"}
                 </div>
               </div>
             </section>
-          )}
+            );
+          })()}
         </div>
       </main>
 

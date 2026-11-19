@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getAuthSession } from "@/lib/auth";
 import { generateApiKey, KeyType } from "@/lib/api-keys";
 import { prisma } from "@/lib/prisma";
+import { getPlanConfig } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Enforce plan bot seat limit
+    const [owner, currentBotCount] = await Promise.all([
+      prisma.user.findUnique({ where: { id: session.userId }, select: { plan: true } }),
+      prisma.bot.count({ where: { userId: session.userId } }),
+    ]);
+    const planConfig = getPlanConfig(owner?.plan);
+    if (currentBotCount >= planConfig.maxBots) {
+      return NextResponse.json(
+        {
+          error: `แพ็กเกจ ${planConfig.thaiName} สร้างได้สูงสุด ${planConfig.maxBots} บอท กรุณาอัปเกรดเป็น Pro Max เพื่อเพิ่มจำนวนบอท`,
+          code: "BOT_LIMIT_REACHED",
+        },
+        { status: 403 }
+      );
+    }
+
     const newBot = await prisma.bot.create({
       data: {
         userId: session.userId,
@@ -78,7 +95,7 @@ export async function POST(req: NextRequest) {
         keyPrefix: generatedKey.keyPrefix,
         keyHash: generatedKey.keyHash,
         type: KeyType.PUBLIC_WIDGET,
-        rateLimitPerMinute: 60,
+        rateLimitPerMinute: planConfig.rateLimitPerMinute,
       },
     });
 

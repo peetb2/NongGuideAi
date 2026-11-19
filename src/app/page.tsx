@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getCachedUser, fetchCurrentUser, UserSessionData } from "@/lib/client-auth";
+import Navbar from "@/components/Navbar";
 
 interface ChatMessage {
   sender: "bot" | "visitor";
@@ -107,12 +108,20 @@ export default function Home() {
     return () => observer.disconnect();
   }, []);
 
-  const scrollToSection = (id: string) => {
+  const scrollToSection = (id: string, behavior: ScrollBehavior = "smooth") => {
     const el = document.getElementById(id);
     if (el) {
-      el.scrollIntoView({ behavior: "smooth" });
+      el.scrollIntoView({ behavior });
     }
   };
+
+  // Deep links from other pages (e.g. /contact → /#how-it-works) scroll inside the snap container
+  useEffect(() => {
+    const hash = window.location.hash.replace("#", "");
+    if (["product", "how-it-works", "integration"].includes(hash)) {
+      requestAnimationFrame(() => scrollToSection(hash, "auto"));
+    }
+  }, []);
 
   const handleCopyCode = async () => {
     try {
@@ -213,7 +222,7 @@ export default function Home() {
   };
 
   const handleTalkToUs = () => {
-    showToast("Opening calendar booking modal...");
+    router.push("/contact");
   };
 
   return (
@@ -221,95 +230,8 @@ export default function Home() {
       ref={containerRef}
       className="h-screen w-full overflow-y-auto snap-y-mandatory scroll-smooth topo-bg text-charcoal font-sans antialiased selection:bg-sage-300 selection:text-charcoal relative"
     >
-      {/* Fixed Floating Header across all 3 pages */}
-      <div className="fixed top-4 sm:top-6 left-0 right-0 z-40 px-4 sm:px-6 md:px-10 flex justify-center pointer-events-none">
-        <header className="w-full max-w-6xl bg-[#FAFCFA]/90 backdrop-blur-md rounded-2xl border border-sage-200/80 px-6 py-3 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)] pointer-events-auto">
-          {/* Logo */}
-          <button
-            type="button"
-            onClick={() => scrollToSection("product")}
-            className="flex items-center space-x-2.5 group cursor-pointer text-left"
-          >
-            <div className="w-7 h-6 bg-[#6E9177] rounded flex items-center justify-center text-white text-xs shadow-sm transition-transform group-hover:scale-105">
-              <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
-              </svg>
-            </div>
-            <span className="font-mono font-bold text-sm tracking-tight text-charcoal">
-              NongGuide AI
-            </span>
-          </button>
-
-          {/* Navigation Links */}
-          <nav className="hidden md:flex items-center space-x-8 font-mono text-xs tracking-wider">
-            <button
-              type="button"
-              onClick={() => scrollToSection("product")}
-              className={`transition-colors cursor-pointer ${
-                activeSection === "product"
-                  ? "text-sage-800 font-bold underline underline-offset-4 decoration-sage-500"
-                  : "text-charcoal/75 hover:text-sage-700"
-              }`}
-            >
-              Product
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollToSection("how-it-works")}
-              className={`transition-colors cursor-pointer ${
-                activeSection === "how-it-works"
-                  ? "text-sage-800 font-bold underline underline-offset-4 decoration-sage-500"
-                  : "text-charcoal/75 hover:text-sage-700"
-              }`}
-            >
-              How it works
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollToSection("integration")}
-              className={`transition-colors cursor-pointer ${
-                activeSection === "integration"
-                  ? "text-sage-800 font-bold underline underline-offset-4 decoration-sage-500"
-                  : "text-charcoal/75 hover:text-sage-700"
-              }`}
-            >
-              Integration
-            </button>
-            {!currentUser && (
-              <Link
-                href="/login"
-                className="text-charcoal/75 hover:text-sage-700 transition-colors"
-              >
-                Sign in
-              </Link>
-            )}
-          </nav>
-
-          {/* Right Action */}
-          <div>
-            {currentUser ? (
-              <div className="flex items-center gap-2">
-                <Link
-                  href="/dashboard"
-                  className="font-mono text-xs px-4 py-1.5 rounded-full bg-[#6E9177] text-white hover:bg-[#587A60] transition duration-200 font-semibold inline-flex items-center gap-1.5 shadow-sm"
-                >
-                  <span>ไปยังแดชบอร์ด</span>
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                  </svg>
-                </Link>
-              </div>
-            ) : (
-              <Link
-                href="/register"
-                className="font-mono text-xs px-5 py-1.5 rounded-full border border-sage-500/70 text-charcoal hover:bg-sage-500 hover:text-white transition duration-200 font-semibold inline-block"
-              >
-                Sign up
-              </Link>
-            )}
-          </div>
-        </header>
-      </div>
+      {/* Shared Fixed Floating Navbar (identical on / and /contact) */}
+      <Navbar activeSection={activeSection} onSectionClick={scrollToSection} />
 
       {/* Floating 3-Page Pagination Indicator Dots (Desktop) */}
       <div className="hidden lg:flex fixed right-6 top-1/2 -translate-y-1/2 z-40 flex-col space-y-3 bg-[#FAFCFA]/80 backdrop-blur-md p-2 rounded-full border border-sage-200/80 shadow-sm">
@@ -728,8 +650,14 @@ export default function Home() {
         </div>
 
         {/* Footer */}
-        <footer className="text-center font-mono text-[11px] text-charcoal/50 pt-2">
-          &copy; 2026 NongGuide AI. Built with pixel-accurate Tailwind CSS.
+        <footer className="text-center font-mono text-[11px] text-charcoal/50 pt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+          <span>&copy; 2026 NongGuide AI. Built with pixel-accurate Tailwind CSS.</span>
+          <Link
+            href="/contact"
+            className="text-sage-800/80 hover:text-sage-900 underline underline-offset-4 transition-colors"
+          >
+            ติดต่อเรา (Contact)
+          </Link>
         </footer>
       </section>
 

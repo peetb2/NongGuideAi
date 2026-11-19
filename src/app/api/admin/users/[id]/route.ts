@@ -7,6 +7,8 @@ export const dynamic = "force-dynamic";
 const UpdateUserSchema = z.object({
   creditBalance: z.number().min(0).optional(),
   creditAdjustment: z.number().optional(),
+  plan: z.enum(["STANDARD", "PRO_MAX"]).optional(),
+  grantPlanCredits: z.boolean().optional(),
   role: z.enum(["USER", "ADMIN"]).optional(),
   isActive: z.boolean().optional(),
   password: z.string().min(6).optional(),

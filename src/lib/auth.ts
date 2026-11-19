@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import { prisma } from "./prisma";
 import { isAdminUser } from "./admin-roles";
+import { normalizePlanId } from "./plans";
 
 const SECRET_KEY = new TextEncoder().encode(
   process.env.NEXTAUTH_SECRET || "matchachatbot-secret-key-change-in-production-min-32"
@@ -49,6 +50,7 @@ export async function getCurrentUser() {
       id: true,
       email: true,
       creditBalance: true,
+      plan: true,
       role: true,
       isActive: true,
       createdAt: true,
@@ -58,9 +60,10 @@ export async function getCurrentUser() {
   if (!user) return null;
 
   const role = user.role || "USER";
+  const plan = normalizePlanId(user.plan);
   const isActive = user.isActive !== undefined && user.isActive !== null ? Boolean(user.isActive) : true;
 
-  const userWithRole = { ...user, role, isActive };
+  const userWithRole = { ...user, role, plan, isActive };
   const isAdmin = isAdminUser(userWithRole);
 
   return {

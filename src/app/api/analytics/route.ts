@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { normalizePlanId } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export async function GET() {
       id: true,
       email: true,
       creditBalance: true,
+      plan: true,
     },
   });
 
@@ -80,6 +82,7 @@ export async function GET() {
 
   return NextResponse.json({
     creditBalance: user.creditBalance,
+    plan: normalizePlanId(user.plan),
     totalBots: botCount,
     totalMessages: totalLogs,
     dailyStats,

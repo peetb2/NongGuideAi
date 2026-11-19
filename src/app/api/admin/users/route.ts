@@ -7,7 +7,8 @@ export const dynamic = "force-dynamic";
 const CreateUserSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
-  creditBalance: z.number().min(0).optional().default(50),
+  creditBalance: z.number().min(0).optional(),
+  plan: z.enum(["STANDARD", "PRO_MAX"]).optional().default("STANDARD"),
   role: z.enum(["USER", "ADMIN"]).optional().default("USER"),
 });
 

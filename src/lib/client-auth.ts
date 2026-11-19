@@ -2,6 +2,7 @@ export interface UserSessionData {
   id: string;
   email: string;
   creditBalance: number;
+  plan?: "STANDARD" | "PRO_MAX";
   role?: string;
   isActive?: boolean;
   isAdmin?: boolean;

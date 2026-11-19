@@ -15,6 +15,7 @@ export async function GET() {
       id: user.id,
       email: user.email,
       creditBalance: user.creditBalance,
+      plan: user.plan,
       role: user.role,
       isActive: user.isActive,
       isAdmin: user.isAdmin,

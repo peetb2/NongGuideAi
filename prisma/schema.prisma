@@ -15,7 +15,8 @@ model User {
   id            String    @id @default(uuid())
   email         String    @unique
   passwordHash  String
-  creditBalance Int       @default(50) // Default 50 free credits
+  creditBalance Int       @default(100) // Default 100 Standard plan credits
+  plan          String    @default("STANDARD") // "STANDARD" | "PRO_MAX"
   role          String    @default("USER") // "USER" | "ADMIN"
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
