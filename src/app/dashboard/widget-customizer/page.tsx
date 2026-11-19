@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Header from "@/components/dashboard/Header";
+import { SkeletonDemo } from "@/components/ui/skeleton";
 import {
   Palette,
   Check,
@@ -589,6 +590,21 @@ function WidgetCustomizerInner() {
 
         {/* Workspace Split View: Controls (Left) vs Interactive Preview (Right) */}
         {/* Stacked + page-scroll on small screens; balanced 40/60 grid with independent column scroll on lg+ */}
+        {loading ? (
+          <div className="flex-1 p-6 sm:p-8 space-y-6 overflow-y-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-white rounded-2xl border border-[#E2E8E3] p-6 space-y-6">
+                <SkeletonDemo />
+                <SkeletonDemo />
+                <SkeletonDemo />
+              </div>
+              <div className="bg-white rounded-2xl border border-[#E2E8E3] p-6 space-y-6">
+                <SkeletonDemo />
+                <SkeletonDemo />
+              </div>
+            </div>
+          </div>
+        ) : (
         <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden flex flex-col lg:grid lg:grid-cols-[minmax(360px,2fr)_minmax(0,3fr)]">
           {/* LEFT: CONTROLS PANEL */}
           <div className="min-w-0 lg:h-full lg:overflow-y-auto overflow-x-hidden p-5 sm:p-6 xl:p-8 space-y-6 bg-white border-b lg:border-b-0 lg:border-r border-[#E2E8E3] shrink-0">
@@ -1118,6 +1134,7 @@ function WidgetCustomizerInner() {
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   );
@@ -1127,8 +1144,10 @@ export default function WidgetCustomizerPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex h-screen items-center justify-center bg-[#F8FAF9] text-xs font-mono text-slate-500">
-          กำลังโหลด Visual Widget Customizer...
+        <div className="flex h-screen items-center justify-center bg-[#F8FAF9] p-6">
+          <div className="bg-white rounded-3xl border border-[#E2E8E3] p-8 shadow-sm">
+            <SkeletonDemo />
+          </div>
         </div>
       }
     >

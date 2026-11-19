@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Header from "@/components/dashboard/Header";
 import AdminUserSidePanel from "@/components/dashboard/AdminUserSidePanel";
+import { SkeletonDemo } from "@/components/ui/skeleton";
 import { AdminUserListItem } from "@/lib/admin";
 import { fetchCurrentUser, UserSessionData } from "@/lib/client-auth";
 import Link from "next/link";
@@ -375,9 +376,12 @@ export default function AdminUsersPage() {
               {/* Users Table / List */}
               <div className="bg-white rounded-2xl border border-borderLight shadow-sm overflow-hidden">
                 {loading && users.length === 0 ? (
-                  <div className="py-20 flex flex-col items-center justify-center text-center space-y-3">
-                    <Loader2 className="w-8 h-8 text-brandGreen animate-spin" />
-                    <p className="text-xs text-textMuted font-medium">กำลังโหลดข้อมูลผู้ใช้...</p>
+                  <div className="p-6 space-y-5 divide-y divide-borderLight/50">
+                    {[0, 1, 2, 3].map((i) => (
+                      <div key={i} className={i > 0 ? "pt-5" : ""}>
+                        <SkeletonDemo />
+                      </div>
+                    ))}
                   </div>
                 ) : error ? (
                   <div className="py-12 px-6 text-center space-y-3">

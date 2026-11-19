@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Header from "@/components/dashboard/Header";
+import { Skeleton, SkeletonDemo } from "@/components/ui/skeleton";
 import {
   getStoredApiKeys,
   removeStoredApiKey,
@@ -202,7 +203,15 @@ export default function ApiKeysPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-borderLight">
-                  {apiKeys.length === 0 ? (
+                  {!isLoaded ? (
+                    [0, 1, 2].map((i) => (
+                      <tr key={i}>
+                        <td colSpan={6} className="py-4 px-6">
+                          <SkeletonDemo />
+                        </td>
+                      </tr>
+                    ))
+                  ) : apiKeys.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-12 text-center text-textMuted">
                         <Key className="w-8 h-8 mx-auto text-slate-300 mb-2" />

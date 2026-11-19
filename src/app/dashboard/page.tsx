@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
+import { Skeleton, SkeletonDemo } from "@/components/ui/skeleton";
 
 type TabType = "dashboard" | "bots" | "apikeys" | "logs" | "billing";
 type BotSubViewType = "form" | "list";
@@ -55,6 +56,7 @@ function AdminDashboardContent() {
 
   const [userCredits, setUserCredits] = useState<number>(100);
   const [totalApiRequests, setTotalApiRequests] = useState<number>(0);
+  const [isDashboardLoading, setIsDashboardLoading] = useState<boolean>(true);
   const [currentUser, setCurrentUser] = useState<{
     email: string;
     creditBalance: number;
@@ -104,7 +106,7 @@ function AdminDashboardContent() {
       .catch(() => {});
 
     // 1. Fetch real bots from DB
-    fetch("/api/bots", { cache: "no-store" })
+    const botsPromise = fetch("/api/bots", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.bots && Array.isArray(data.bots)) {
@@ -128,7 +130,7 @@ function AdminDashboardContent() {
       .catch(() => {});
 
     // 2. Fetch real keys from DB
-    fetch("/api/keys", { cache: "no-store" })
+    const keysPromise = fetch("/api/keys", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.apiKeys && Array.isArray(data.apiKeys)) {
@@ -147,7 +149,7 @@ function AdminDashboardContent() {
       .catch(() => {});
 
     // 3. Fetch real analytics & usage logs from DB
-    fetch("/api/analytics", { cache: "no-store" })
+    const analyticsPromise = fetch("/api/analytics", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data) {
@@ -179,6 +181,10 @@ function AdminDashboardContent() {
         }
       })
       .catch(() => {});
+
+    Promise.allSettled([botsPromise, keysPromise, analyticsPromise]).then(() => {
+      setIsDashboardLoading(false);
+    });
   }, []);
 
   const switchTab = (tab: TabType) => {
@@ -492,7 +498,47 @@ function AdminDashboardContent() {
              ======================================================== */}
           {currentTab === "dashboard" && (
             <section className="space-y-6 animate-fade-in">
-              {/* 4 Metric Stat Cards */}
+              {isDashboardLoading ? (
+                <>
+                  {/* 4 Metric Stat Cards Skeleton */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                    {[0, 1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="bg-cardBg rounded-2xl p-5 border border-borderLight shadow-sm space-y-4 overflow-hidden"
+                      >
+                        <SkeletonDemo />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Chart & Activities Skeleton */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    <div className="lg:col-span-8 bg-cardBg rounded-2xl p-6 border border-borderLight shadow-sm space-y-6">
+                      <SkeletonDemo />
+                      <div className="h-64 flex items-end justify-between gap-3 pt-6 border-b border-borderLight pb-3">
+                        {[45, 70, 35, 85, 55, 65, 40, 75, 50, 90, 60, 80].map((h, idx) => (
+                          <Skeleton
+                            key={idx}
+                            className="flex-1 rounded-t-md"
+                            style={{ height: `${h}%` }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="lg:col-span-4 bg-cardBg rounded-2xl p-6 border border-borderLight shadow-sm space-y-5">
+                      <Skeleton className="h-5 w-36" />
+                      {[0, 1, 2].map((i) => (
+                        <div key={i} className="overflow-hidden">
+                          <SkeletonDemo />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* 4 Metric Stat Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                 {/* Stat 1 */}
                 <Link
@@ -679,6 +725,8 @@ function AdminDashboardContent() {
                   </div>
                 </div>
               </div>
+                </>
+              )}
             </section>
           )}
 
@@ -1443,7 +1491,15 @@ function AdminDashboardContent() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-borderLight">
-                      {filteredLogs.length === 0 ? (
+                      {isDashboardLoading ? (
+                        [0, 1, 2].map((i) => (
+                          <tr key={i}>
+                            <td colSpan={6} className="py-4 px-6">
+                              <SkeletonDemo />
+                            </td>
+                          </tr>
+                        ))
+                      ) : filteredLogs.length === 0 ? (
                         <tr>
                           <td colSpan={6} className="py-8 text-center text-textMuted text-xs">
                             ไม่พบบันทึกการเรียกใช้งาน API ในขณะนี้
@@ -1687,8 +1743,10 @@ export default function AdminDashboardPage() {
   return (
     <Suspense
       fallback={
-        <div className="w-full min-h-screen topo-bg-warm flex items-center justify-center text-textMuted font-mono text-sm">
-          กำลังโหลดแดชบอร์ด...
+        <div className="w-full min-h-screen topo-bg-warm flex items-center justify-center p-6">
+          <div className="bg-white rounded-3xl border border-borderLight p-8 shadow-sm">
+            <SkeletonDemo />
+          </div>
         </div>
       }
     >

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Header from "@/components/dashboard/Header";
+import { Skeleton, SkeletonDemo } from "@/components/ui/skeleton";
 import { BotItem } from "@/lib/bot-store";
 import {
   Bot,
@@ -630,9 +631,26 @@ export default function BotListPage() {
 
           {/* Bots Grid */}
           {!isLoaded ? (
-            <div className="py-20 flex flex-col items-center justify-center text-textMuted">
-              <Loader2 className="w-7 h-7 animate-spin text-[#4E6955] mb-2" />
-              <p className="text-xs">กำลังโหลดข้อมูลแชทบอท...</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="bg-cardBg rounded-2xl border border-borderLight p-5 sm:p-6 space-y-5 shadow-xs"
+                >
+                  <SkeletonDemo />
+                  <div className="space-y-2">
+                    <Skeleton className="h-3.5 w-full" />
+                    <Skeleton className="h-3.5 w-4/5" />
+                  </div>
+                  <div className="pt-3 border-t border-borderLight flex items-center justify-between">
+                    <Skeleton className="h-4 w-20" />
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-8 w-20 rounded-xl" />
+                      <Skeleton className="h-8 w-24 rounded-xl" />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : filteredBots.length === 0 ? (
             <div className="bg-cardBg rounded-2xl border border-dashed border-borderLight p-12 text-center space-y-4">
@@ -967,9 +985,15 @@ export default function BotListPage() {
                   )}
 
                   {docsLoading ? (
-                    <div className="py-16 text-center text-textMuted flex flex-col items-center justify-center">
-                      <Loader2 className="w-6 h-6 animate-spin text-[#4E6955] mb-2" />
-                      <p className="text-xs">กำลังเรียกดูเอกสารในฐานข้อมูล...</p>
+                    <div className="space-y-4 py-4">
+                      {[0, 1, 2].map((i) => (
+                        <div
+                          key={i}
+                          className="p-4 rounded-2xl border border-borderLight bg-white"
+                        >
+                          <SkeletonDemo />
+                        </div>
+                      ))}
                     </div>
                   ) : botDocuments.length === 0 ? (
                     <div className="py-12 border-2 border-dashed border-borderLight rounded-2xl text-center space-y-3">
