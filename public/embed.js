@@ -97,10 +97,6 @@
     const attrBotName = script?.getAttribute('data-bot-name');
     const attrGreeting = script?.getAttribute('data-greeting');
     const attrQuickPrompts = script?.getAttribute('data-quick-prompts');
-    const attrShowSources = script?.getAttribute('data-show-sources');
-
-    // Sources citation visibility ("แหล่งข้อมูล:") - defaults to false
-    let showSources = attrShowSources === 'true';
 
     // 2. Persistent session ID
     const sessionKey = `matcha_session_${publicKey.slice(0, 12) || 'default'}`;
@@ -187,7 +183,7 @@
         position: absolute;
         bottom: 74px;
         ${attrPosition === 'left' ? 'left: 0;' : 'right: 0;'}
-        width: 380px;
+        width: 390px;
         max-width: calc(100vw - 32px);
         height: 610px;
         max-height: calc(100vh - 110px);
@@ -213,16 +209,21 @@
       .chat-header {
         background: var(--primary);
         color: #ffffff;
-        padding: 16px 18px;
+        padding: 15px 16px;
         display: flex;
         align-items: center;
         justify-content: space-between;
+        gap: 10px;
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
       }
       .bot-info {
         display: flex;
         align-items: center;
         gap: 12px;
+        min-width: 0;
+      }
+      .bot-details {
+        min-width: 0;
       }
       .bot-avatar {
         width: 40px;
@@ -249,6 +250,9 @@
         font-weight: 600;
         letter-spacing: -0.2px;
         line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .bot-status {
         font-size: 11.5px;
@@ -257,6 +261,9 @@
         align-items: center;
         gap: 6px;
         margin-top: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .status-dot {
         width: 7px;
@@ -264,7 +271,15 @@
         border-radius: 50%;
         background: #34D399;
         box-shadow: 0 0 6px #34D399;
+        flex-shrink: 0;
       }
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+      .header-btn,
       .close-btn {
         background: rgba(255, 255, 255, 0.12);
         border: none;
@@ -275,10 +290,15 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: background 0.2s;
+        transition: background 0.2s, transform 0.15s;
       }
+      .header-btn:hover,
       .close-btn:hover {
         background: rgba(255, 255, 255, 0.25);
+      }
+      .header-btn:active,
+      .close-btn:active {
+        transform: scale(0.92);
       }
 
       .chat-messages {
@@ -290,28 +310,36 @@
         gap: 12px;
         background: #F8FAF9;
         scroll-behavior: smooth;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(100, 116, 139, 0.28) transparent;
       }
       .chat-messages::-webkit-scrollbar {
         width: 5px;
       }
+      .chat-messages::-webkit-scrollbar-track {
+        background: transparent;
+      }
       .chat-messages::-webkit-scrollbar-thumb {
-        background: #CBD5E1;
-        border-radius: 4px;
+        background: rgba(100, 116, 139, 0.28);
+        border-radius: 9999px;
+      }
+      .chat-messages::-webkit-scrollbar-thumb:hover {
+        background: rgba(100, 116, 139, 0.48);
       }
 
       .msg {
-        max-width: 85%;
+        position: relative;
+        max-width: 86%;
         padding: 11px 15px;
         border-radius: 18px;
         font-size: 13.5px;
-        line-height: 1.5;
+        line-height: 1.55;
         word-break: break-word;
-        white-space: pre-wrap;
-        animation: fadeInMsg 0.2s ease-out;
+        animation: msgSlideIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
       }
-      @keyframes fadeInMsg {
-        from { opacity: 0; transform: translateY(6px); }
-        to { opacity: 1; transform: translateY(0); }
+      @keyframes msgSlideIn {
+        from { opacity: 0; transform: translateY(8px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
       }
 
       .msg.bot {
@@ -321,6 +349,66 @@
         border-bottom-left-radius: 4px;
         border: 1px solid #E2E8F0;
         box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+        padding-right: 15px;
+      }
+      .msg-content p {
+        margin: 0 0 8px 0;
+      }
+      .msg-content p:last-child {
+        margin-bottom: 0;
+      }
+      .msg-content ul {
+        margin: 4px 0 8px 0;
+        padding-left: 18px;
+        list-style-type: disc;
+      }
+      .msg-content ul:last-child {
+        margin-bottom: 0;
+      }
+      .msg-content li {
+        margin-bottom: 4px;
+      }
+      .msg-content li:last-child {
+        margin-bottom: 0;
+      }
+      .msg-content strong {
+        font-weight: 600;
+        color: #0F172A;
+      }
+
+      .msg-copy-btn {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid #E2E8F0;
+        color: #64748B;
+        border-radius: 8px;
+        padding: 4px 6px;
+        font-size: 10.5px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.16s ease, background 0.15s ease, color 0.15s ease;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+      }
+      .msg.bot:hover .msg-copy-btn,
+      .msg.bot:focus-within .msg-copy-btn,
+      .msg-copy-btn.copied {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .msg-copy-btn:hover {
+        background: #F1F5F9;
+        color: #0F172A;
+      }
+      .msg-copy-btn.copied {
+        background: #ECFDF5;
+        border-color: #A7F3D0;
+        color: #047857;
       }
 
       .msg.user {
@@ -329,6 +417,7 @@
         color: #ffffff;
         border-bottom-right-radius: 4px;
         font-weight: 500;
+        white-space: pre-wrap;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
       }
 
@@ -340,27 +429,7 @@
         font-size: 12px;
         text-align: center;
         max-width: 92%;
-      }
-
-      .sources-container {
-        margin-top: 8px;
-        padding-top: 8px;
-        border-top: 1px solid #E2E8F0;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        font-size: 11px;
-      }
-      .source-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 2px 8px;
-        background: #F1F5F9;
-        color: #475569;
-        border-radius: 12px;
-        font-size: 10.5px;
-        font-weight: 500;
+        white-space: pre-wrap;
       }
 
       /* Quick Prompts Bar */
@@ -373,6 +442,9 @@
         white-space: nowrap;
         border-top: 1px solid #E5E9E7;
         scrollbar-width: none;
+        -ms-overflow-style: none;
+        scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
       }
       .quick-prompts-container::-webkit-scrollbar {
         display: none;
@@ -488,6 +560,32 @@
         font-weight: 600;
         text-decoration: none;
       }
+
+      /* Mobile bottom-sheet adaptation (< 480px) */
+      @media (max-width: 480px) {
+        .chat-window {
+          position: fixed;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          width: 100vw;
+          max-width: 100vw;
+          height: 88vh;
+          height: 88dvh;
+          max-height: 92dvh;
+          border-radius: 20px 20px 0 0;
+          transform-origin: bottom center;
+          box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.22);
+        }
+        .chat-window.open ~ .widget-launcher {
+          opacity: 0;
+          pointer-events: none;
+          transform: scale(0.8);
+        }
+        .brand-footer {
+          padding-bottom: max(8px, env(safe-area-inset-bottom));
+        }
+      }
     `;
 
     function shadeColor(color, percent) {
@@ -525,12 +623,20 @@
               </div>
             </div>
           </div>
-          <button class="close-btn" id="close-btn" aria-label="Close chat">
-            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
+          <div class="header-actions">
+            <button class="header-btn" id="clear-btn" title="เริ่มแชทใหม่" aria-label="Clear chat">
+              <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                <path d="M3 3v5h5"></path>
+              </svg>
+            </button>
+            <button class="close-btn" id="close-btn" title="ปิดหน้าต่างแชท" aria-label="Close chat">
+              <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div class="chat-messages" id="chat-messages">
@@ -575,6 +681,7 @@
     // Elements
     const launcherBtn = shadow.getElementById('launcher-btn');
     const chatWindow = shadow.getElementById('chat-window');
+    const clearBtn = shadow.getElementById('clear-btn');
     const closeBtn = shadow.getElementById('close-btn');
     const iconChat = shadow.getElementById('icon-chat');
     const iconClose = shadow.getElementById('icon-close');
@@ -586,11 +693,149 @@
     const botStatusEl = shadow.getElementById('bot-status');
     const botAvatarEl = shadow.getElementById('bot-avatar');
     const botAvatarInitial = shadow.getElementById('bot-avatar-initial');
-    const initialGreetingEl = shadow.getElementById('initial-greeting');
+    let initialGreetingEl = shadow.getElementById('initial-greeting');
     const quickPromptsEl = shadow.getElementById('quick-prompts');
 
     let isOpen = false;
     let enableStreaming = true;
+    let currentGreetingText = attrGreeting || 'สวัสดีครับ! ยินดีต้อนรับ มีข้อมูลหรือบริการใดให้ช่วยเหลือไหมครับ?';
+
+    // XSS-safe basic Markdown renderer (**bold**, bullet lists, clean paragraphs)
+    const escapeHtml = (str) =>
+      String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const formatInlineMarkdown = (escapedLine) =>
+      escapedLine.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+    const renderMarkdownHtml = (rawText) => {
+      const normalized = String(rawText || '').replace(/\r\n/g, '\n').trim();
+      if (!normalized) return '';
+      const blocks = normalized.split(/\n{2,}/);
+      return blocks
+        .map((block) => {
+          const lines = block.split('\n');
+          let html = '';
+          let inList = false;
+          let paraLines = [];
+
+          const flushPara = () => {
+            if (paraLines.length > 0) {
+              html += `<p>${paraLines.map((l) => formatInlineMarkdown(escapeHtml(l))).join('<br>')}</p>`;
+              paraLines = [];
+            }
+          };
+
+          for (const rawLine of lines) {
+            const trimmed = rawLine.trim();
+            const bulletMatch = trimmed.match(/^(?:[-•*])\s+(.+)$/);
+            if (bulletMatch) {
+              flushPara();
+              if (!inList) {
+                html += '<ul>';
+                inList = true;
+              }
+              html += `<li>${formatInlineMarkdown(escapeHtml(bulletMatch[1]))}</li>`;
+            } else {
+              if (inList) {
+                html += '</ul>';
+                inList = false;
+              }
+              if (trimmed) {
+                paraLines.push(rawLine);
+              }
+            }
+          }
+          if (inList) html += '</ul>';
+          flushPara();
+          return html;
+        })
+        .join('');
+    };
+
+    const COPY_ICON_SVG = `<svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+    const CHECK_ICON_SVG = `<svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+
+    const attachCopyButton = (bubbleEl, getPlainText) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'msg-copy-btn';
+      btn.title = 'คัดลอกข้อความ';
+      btn.setAttribute('aria-label', 'Copy reply');
+      btn.innerHTML = COPY_ICON_SVG;
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const plain = (typeof getPlainText === 'function' ? getPlainText() : String(getPlainText || '')).replace(/\*\*/g, '').trim();
+        if (!plain) return;
+        try {
+          if (navigator?.clipboard?.writeText) {
+            await navigator.clipboard.writeText(plain);
+          } else {
+            const ta = document.createElement('textarea');
+            ta.value = plain;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+          }
+          btn.classList.add('copied');
+          btn.innerHTML = `${CHECK_ICON_SVG}<span>คัดลอกแล้ว</span>`;
+          setTimeout(() => {
+            btn.classList.remove('copied');
+            btn.innerHTML = COPY_ICON_SVG;
+          }, 1800);
+        } catch {
+          // ignore clipboard errors
+        }
+      });
+      bubbleEl.appendChild(btn);
+    };
+
+    const createBotMessageBubble = (initialText) => {
+      const bubble = document.createElement('div');
+      bubble.className = 'msg bot';
+      const contentEl = document.createElement('div');
+      contentEl.className = 'msg-content';
+      let currentRaw = initialText || '';
+      if (currentRaw) {
+        contentEl.innerHTML = renderMarkdownHtml(currentRaw);
+      }
+      bubble.appendChild(contentEl);
+      attachCopyButton(bubble, () => currentRaw);
+      return {
+        bubble,
+        contentEl,
+        setText: (nextText) => {
+          currentRaw = nextText || '';
+          contentEl.innerHTML = renderMarkdownHtml(currentRaw);
+        },
+      };
+    };
+
+    // Upgrade initial greeting bubble with Markdown + copy button
+    if (initialGreetingEl) {
+      const greetingBubble = createBotMessageBubble(currentGreetingText);
+      greetingBubble.bubble.id = 'initial-greeting';
+      initialGreetingEl.replaceWith(greetingBubble.bubble);
+      initialGreetingEl = greetingBubble.bubble;
+      initialGreetingEl._setText = greetingBubble.setText;
+    }
+
+    // Smooth horizontal mouse-wheel scrolling on quick-prompt chips row
+    quickPromptsEl.addEventListener(
+      'wheel',
+      (e) => {
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+          e.preventDefault();
+          quickPromptsEl.scrollLeft += e.deltaY;
+        }
+      },
+      { passive: false }
+    );
 
     // Toggle Chat
     const toggleChat = () => {
@@ -669,7 +914,12 @@
       }
 
       if (cfg.greetingMessage && !attrGreeting) {
-        initialGreetingEl.textContent = cfg.greetingMessage;
+        currentGreetingText = cfg.greetingMessage;
+        if (initialGreetingEl && typeof initialGreetingEl._setText === 'function') {
+          initialGreetingEl._setText(cfg.greetingMessage);
+        } else if (initialGreetingEl) {
+          initialGreetingEl.textContent = cfg.greetingMessage;
+        }
       }
 
       if (cfg.placeholderText) {
@@ -682,10 +932,6 @@
 
       if (typeof cfg.enableStreaming === 'boolean') {
         enableStreaming = cfg.enableStreaming;
-      }
-
-      if (typeof cfg.showSources === 'boolean' && attrShowSources === null) {
-        showSources = cfg.showSources;
       }
     };
 
@@ -732,6 +978,29 @@
       conversationHistory.push({ role: 'assistant', text: botText });
       while (conversationHistory.length > MAX_HISTORY_TURNS * 2) conversationHistory.shift();
     };
+
+    // Clear chat handler (resets conversation back to welcome message)
+    const handleClearChat = () => {
+      conversationHistory.length = 0;
+      showTyping(false);
+      const children = Array.from(chatMessages.children);
+      for (const child of children) {
+        if (child !== typingIndicator) {
+          chatMessages.removeChild(child);
+        }
+      }
+      const greetingBubble = createBotMessageBubble(currentGreetingText);
+      greetingBubble.bubble.id = 'initial-greeting';
+      greetingBubble.bubble._setText = greetingBubble.setText;
+      chatMessages.insertBefore(greetingBubble.bubble, typingIndicator);
+      initialGreetingEl = greetingBubble.bubble;
+      chatInput.value = '';
+      chatInput.focus();
+      scrollToBottom();
+    };
+    if (clearBtn) {
+      clearBtn.addEventListener('click', handleClearChat);
+    }
 
     // Send Message with Real-Time SSE Streaming
     const handleSendMessage = async () => {
@@ -795,8 +1064,8 @@
 
           // Create streaming bot message bubble
           showTyping(false);
-          const botMsgDiv = document.createElement('div');
-          botMsgDiv.className = 'msg bot';
+          const botBubble = createBotMessageBubble('');
+          const botMsgDiv = botBubble.bubble;
           chatMessages.insertBefore(botMsgDiv, typingIndicator);
 
           const reader = response.body.getReader();
@@ -823,21 +1092,11 @@
                   const eventData = JSON.parse(jsonStr);
                   if (eventData.type === 'chunk' && eventData.text) {
                     fullReply += eventData.text;
-                    botMsgDiv.textContent = fullReply.replace(/\*\*/g, '');
+                    botBubble.setText(fullReply);
                     scrollToBottom();
                   } else if (eventData.type === 'done') {
                     if (eventData.botName && !attrBotName) {
                       botNameEl.textContent = eventData.botName;
-                    }
-                    if (showSources && eventData.sources && eventData.sources.length > 0) {
-                      const sourcesDiv = document.createElement('div');
-                      sourcesDiv.className = 'sources-container';
-                      sourcesDiv.innerHTML = `<span style="color:#64748B;font-weight:600;font-size:10px;">แหล่งข้อมูล:</span> ` +
-                        eventData.sources
-                          .map((s) => `<span class="source-badge">📄 ${s.title} (${s.relevance}%)</span>`)
-                          .join(' ');
-                      botMsgDiv.appendChild(sourcesDiv);
-                      scrollToBottom();
                     }
                   } else if (eventData.type === 'error') {
                     botMsgDiv.className = 'msg system-error';
@@ -850,8 +1109,8 @@
             }
           }
 
-          if (!fullReply.trim() && botMsgDiv.textContent === '') {
-            botMsgDiv.textContent = 'ขออภัยครับ ไม่สามารถตอบกลับได้ในขณะนี้';
+          if (!fullReply.trim() && botBubble.contentEl.textContent === '') {
+            botBubble.setText('ขออภัยครับ ไม่สามารถตอบกลับได้ในขณะนี้');
           } else if (fullReply.trim() && botMsgDiv.className !== 'msg system-error') {
             rememberTurn(text, fullReply.replace(/\*\*/g, '').trim());
           }
@@ -886,19 +1145,8 @@
             if (data.botName && !attrBotName) {
               botNameEl.textContent = data.botName;
             }
-            const botMsgDiv = document.createElement('div');
-            botMsgDiv.className = 'msg bot';
-            botMsgDiv.textContent = (data.reply || '').replace(/\*\*/g, '');
-
-            if (showSources && data.sources && data.sources.length > 0) {
-              const sourcesDiv = document.createElement('div');
-              sourcesDiv.className = 'sources-container';
-              sourcesDiv.innerHTML = `<span style="color:#64748B;font-weight:600;font-size:10px;">แหล่งข้อมูล:</span> ` +
-                data.sources
-                  .map((s) => `<span class="source-badge">📄 ${s.title} (${s.relevance}%)</span>`)
-                  .join(' ');
-              botMsgDiv.appendChild(sourcesDiv);
-            }
+            const botBubble = createBotMessageBubble(data.reply || '');
+            const botMsgDiv = botBubble.bubble;
 
             chatMessages.insertBefore(botMsgDiv, typingIndicator);
             rememberTurn(text, (data.reply || '').replace(/\*\*/g, '').trim());

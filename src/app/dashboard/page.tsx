@@ -5,6 +5,17 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import { Skeleton, SkeletonDemo } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 import { PLAN_LIST, getPlanConfig, normalizePlanId, PlanId } from "@/lib/plans";
 import { Check, Crown, Sparkles, ShieldCheck } from "lucide-react";
 
@@ -219,12 +230,18 @@ function AdminDashboardContent() {
   };
 
   // Toast State
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [keyToRevoke, setKeyToRevoke] = useState<{ id: string; name: string } | null>(null);
   const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 2800);
+    const isError =
+      msg.includes("ไม่สำเร็จ") ||
+      msg.includes("ผิดพลาด") ||
+      msg.includes("ไม่สามารถ") ||
+      msg.includes("กรุณา");
+    if (isError) {
+      toast.error(msg);
+    } else {
+      toast.success(msg);
+    }
   };
 
   // Notification Popover State
@@ -363,10 +380,20 @@ function AdminDashboardContent() {
   };
 
   const revokeApiKey = (id: string, name: string) => {
-    if (confirm(`คุณแน่ใจหรือไม่ว่าต้องการเพิกถอนคีย์ "${name}"?`)) {
-      setApiKeysData(apiKeysData.filter((k) => k.id !== id));
-      showToast(`เพิกถอนคีย์ "${name}" แล้ว`);
+    setKeyToRevoke({ id, name });
+  };
+
+  const handleConfirmRevokeKey = async () => {
+    if (!keyToRevoke) return;
+    const { id, name } = keyToRevoke;
+    try {
+      await fetch(`/api/keys?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    } catch {
+      // fallback to local removal
     }
+    setApiKeysData((prev) => prev.filter((k) => k.id !== id));
+    setKeyToRevoke(null);
+    toast.success(`เพิกถอนคีย์ "${name}" แล้ว`);
   };
 
   // ========================================================
@@ -1958,16 +1985,29 @@ function AdminDashboardContent() {
         </div>
       )}
 
-      {/* Floating Notification Toast */}
-      <div
-        className={`fixed bottom-6 right-6 font-mono text-xs bg-sidebar text-white px-4 py-2.5 rounded-xl shadow-2xl border border-emerald-700/50 transition-all duration-300 z-50 ${
-          toastMessage
-            ? "opacity-100 translate-y-0 pointer-events-auto"
-            : "opacity-0 translate-y-2 pointer-events-none"
-        }`}
+      {/* Revoke API Key AlertDialog */}
+      <AlertDialog
+        open={Boolean(keyToRevoke)}
+        onOpenChange={(open) => {
+          if (!open) setKeyToRevoke(null);
+        }}
       >
-        {toastMessage || ""}
-      </div>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>ยืนยันการเพิกถอน API Key?</AlertDialogTitle>
+            <AlertDialogDescription>
+              คุณแน่ใจหรือไม่ว่าต้องการเพิกถอนคีย์ &quot;{keyToRevoke?.name}&quot;?
+              วิดเจ็ตหรือระบบที่ใช้งานคีย์นี้จะหยุดทำงานทันที
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmRevokeKey}>
+              ยืนยันการเพิกถอน
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

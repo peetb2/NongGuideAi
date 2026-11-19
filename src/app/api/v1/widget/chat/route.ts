@@ -268,10 +268,6 @@ export async function POST(req: NextRequest) {
                   reply: fullReply,
                   creditsRemaining: updatedUser.creditBalance,
                   botName: bot.name,
-                  sources: retrievedChunks.map((c) => ({
-                    title: c.documentTitle,
-                    relevance: Number((c.similarity * 100).toFixed(1)),
-                  })),
                 })}\n\n`
               )
             );
@@ -347,16 +343,12 @@ export async function POST(req: NextRequest) {
       }),
     ]);
 
-    // Return success response with sources & credits
+    // Return success response with credits
     return NextResponse.json(
       {
         reply: replyText,
         creditsRemaining: updatedUser.creditBalance,
         botName: bot.name,
-        sources: retrievedChunks.map((c) => ({
-          title: c.documentTitle,
-          relevance: Number((c.similarity * 100).toFixed(1)),
-        })),
       },
       { status: 200, headers: corsHeaders(originHeader) }
     );

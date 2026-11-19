@@ -6,6 +6,17 @@ import Sidebar from "@/components/dashboard/Sidebar";
 import Header from "@/components/dashboard/Header";
 import { Skeleton, SkeletonDemo } from "@/components/ui/skeleton";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import {
   getStoredApiKeys,
   removeStoredApiKey,
   ApiKeyItem,
@@ -67,10 +78,7 @@ export default function ApiKeysPage() {
   }, []);
 
   const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 2800);
+    toast.success(msg);
   };
 
   const copyToClipboard = (text: string, label: string, id?: string) => {
@@ -334,41 +342,35 @@ export default function ApiKeysPage() {
         </div>
       </main>
 
-      {/* Revocation Confirmation Modal */}
-      {revokeModalKey && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-borderLight space-y-4">
-            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+      {/* Revocation Confirmation AlertDialog */}
+      <AlertDialog
+        open={Boolean(revokeModalKey)}
+        onOpenChange={(open) => {
+          if (!open) setRevokeModalKey(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-2">
               <AlertTriangle className="w-6 h-6" />
             </div>
-            <div className="text-center">
-              <h3 className="text-base font-bold text-textMain">
-                ยืนยันการเพิกถอนคีย์ API?
-              </h3>
-              <p className="text-xs text-textMuted mt-1.5 leading-relaxed">
-                คุณกำลังจะเพิกถอนคีย์ &quot;<strong className="text-textMain">{revokeModalKey.name}</strong>&quot; ({revokeModalKey.prefix})
-                คำขอบริการที่ใช้คีย์นี้หลังจากนี้จะถูกปฏิเสธทันที
-              </p>
-            </div>
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-borderLight">
-              <button
-                type="button"
-                onClick={() => setRevokeModalKey(null)}
-                className="px-4 py-2 rounded-xl border border-borderLight text-xs font-semibold text-textMain hover:bg-slate-50 transition cursor-pointer"
-              >
-                ยกเลิก
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmRevoke}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-sm transition cursor-pointer"
-              >
-                ยืนยันการเพิกถอน
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            <AlertDialogTitle className="text-center">
+              ยืนยันการเพิกถอนคีย์ API?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-center">
+              คุณกำลังจะเพิกถอนคีย์ &quot;
+              <strong className="text-textMain">{revokeModalKey?.name}</strong>&quot; (
+              {revokeModalKey?.prefix}) คำขอบริการที่ใช้คีย์นี้หลังจากนี้จะถูกปฏิเสธทันที
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="sm:justify-end pt-3 border-t border-borderLight">
+            <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmRevoke}>
+              ยืนยันการเพิกถอน
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Security Guide Modal */}
       {securityModalOpen && (

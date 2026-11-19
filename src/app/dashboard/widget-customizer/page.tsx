@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Header from "@/components/dashboard/Header";
 import { SkeletonDemo } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { toast } from "sonner";
 import {
   Palette,
   Check,
@@ -22,7 +24,84 @@ import {
   ExternalLink,
   MessageSquare,
   Zap,
+  RotateCcw,
 } from "lucide-react";
+
+function renderInlineBold(text: string): React.ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, idx) => {
+    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+      return (
+        <strong key={idx} className="font-semibold text-[#0F172A]">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return <React.Fragment key={idx}>{part}</React.Fragment>;
+  });
+}
+
+function renderAssistantMarkdown(rawText: string): React.ReactNode {
+  const normalized = (rawText || "").replace(/\r\n/g, "\n").trim();
+  if (!normalized) return null;
+
+  const blocks = normalized.split(/\n{2,}/);
+  return (
+    <div className="space-y-2">
+      {blocks.map((block, bIdx) => {
+        const lines = block.split("\n");
+        const nodes: React.ReactNode[] = [];
+        let listItems: string[] = [];
+        let paraLines: string[] = [];
+
+        const flushList = (keyPrefix: string) => {
+          if (listItems.length > 0) {
+            nodes.push(
+              <ul key={`${keyPrefix}-ul-${nodes.length}`} className="list-disc pl-4 space-y-1">
+                {listItems.map((item, liIdx) => (
+                  <li key={liIdx}>{renderInlineBold(item)}</li>
+                ))}
+              </ul>
+            );
+            listItems = [];
+          }
+        };
+
+        const flushPara = (keyPrefix: string) => {
+          if (paraLines.length > 0) {
+            nodes.push(
+              <p key={`${keyPrefix}-p-${nodes.length}`} className="leading-relaxed">
+                {paraLines.map((line, lIdx) => (
+                  <React.Fragment key={lIdx}>
+                    {lIdx > 0 && <br />}
+                    {renderInlineBold(line)}
+                  </React.Fragment>
+                ))}
+              </p>
+            );
+            paraLines = [];
+          }
+        };
+
+        for (const rawLine of lines) {
+          const trimmed = rawLine.trim();
+          const bulletMatch = trimmed.match(/^(?:[-•*])\s+(.+)$/);
+          if (bulletMatch) {
+            flushPara(`b${bIdx}`);
+            listItems.push(bulletMatch[1]);
+          } else {
+            flushList(`b${bIdx}`);
+            if (trimmed) paraLines.push(rawLine);
+          }
+        }
+        flushList(`b${bIdx}`);
+        flushPara(`b${bIdx}`);
+
+        return <React.Fragment key={bIdx}>{nodes}</React.Fragment>;
+      })}
+    </div>
+  );
+}
 
 interface BotData {
   id: string;
@@ -48,7 +127,6 @@ interface WidgetThemeConfig {
   placeholderText: string;
   quickPrompts: string[];
   enableStreaming: boolean;
-  showSources?: boolean;
 }
 
 const PRESET_THEMES = [
@@ -90,7 +168,6 @@ function WidgetCustomizerInner() {
       "ติดต่อเจ้าหน้าที่ฝ่ายบริการ",
     ],
     enableStreaming: true,
-    showSources: false,
   });
 
   const [newPromptInput, setNewPromptInput] = useState("");
@@ -106,11 +183,38 @@ function WidgetCustomizerInner() {
   >([]);
   const [previewInput, setPreviewInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [copiedMsgIdx, setCopiedMsgIdx] = useState<number | null>(null);
   const previewChatBottomRef = useRef<HTMLDivElement>(null);
+  const quickPromptsRowRef = useRef<HTMLDivElement>(null);
 
-  const showToast = (msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3500);
+  const handleClearPreviewChat = () => {
+    setPreviewMessages([{ sender: "bot", text: config.greetingMessage }]);
+    setPreviewInput("");
+    setCopiedMsgIdx(null);
+  };
+
+  const handleCopyPreviewMessage = async (text: string, idx: number) => {
+    const clean = (text || "").replace(/\*\*/g, "").trim();
+    if (!clean) return;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(clean);
+      }
+      setCopiedMsgIdx(idx);
+      setTimeout(() => {
+        setCopiedMsgIdx((prev) => (prev === idx ? null : prev));
+      }, 1800);
+    } catch {
+      // ignore clipboard errors
+    }
+  };
+
+  const showToast = (msg: string, isError = false) => {
+    if (isError) {
+      toast.error(msg);
+    } else {
+      toast.success(msg);
+    }
   };
 
   // 1. Fetch Bots and API Keys
@@ -201,7 +305,6 @@ function WidgetCustomizerInner() {
             "ติดต่อเจ้าหน้าที่ฝ่ายบริการ",
           ],
           enableStreaming: parsed.enableStreaming !== false,
-          showSources: Boolean(parsed.showSources === true),
         });
         return;
       } catch (e) {
@@ -491,29 +594,49 @@ function WidgetCustomizerInner() {
       setOriginUrl(browserOrigin);
     }
   }, [envAppUrl]);
+  const activeKeyForSnippet = publicApiKey || "pk_live_YOUR_API_KEY";
   const embedSnippet = `<script
   src="${originUrl}/widget.js"
-  data-bot-key="${publicApiKey || "pk_live_YOUR_API_KEY"}"${selectedBotId ? `\n  data-bot="${selectedBotId}"` : ""}
-  data-position="${config.position}"${config.showSources ? '\n  data-show-sources="true"' : ""}
+  data-bot-key="${activeKeyForSnippet}"${selectedBotId ? `\n  data-bot="${selectedBotId}"` : ""}
+  data-position="${config.position}"
   defer
 ></script>`;
+
+  const reactSnippet = `import Script from "next/script";
+
+export function NongGuideWidget() {
+  return (
+    <Script
+      src="${originUrl}/widget.js"
+      data-bot-key="${activeKeyForSnippet}"${selectedBotId ? `\n      data-bot="${selectedBotId}"` : ""}
+      data-position="${config.position}"
+      strategy="lazyOnload"
+    />
+  );
+}`;
+
+  const curlSnippet = `curl -X POST "${originUrl}/api/v1/widget/chat" \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${activeKeyForSnippet}" \\
+  -d '${JSON.stringify({
+    botId: selectedBotId || undefined,
+    message: "แนะนำทริปเที่ยว 2 วัน 1 คืนหน่อยครับ",
+    stream: false,
+  })}'`;
+
+  const [embedTab, setEmbedTab] = useState<"html" | "react" | "curl">("html");
+  const activeEmbedCode =
+    embedTab === "html" ? embedSnippet : embedTab === "react" ? reactSnippet : curlSnippet;
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopiedSnippet(true);
-    showToast("คัดลอกโค้ดสคริปต์เรียบร้อยแล้ว!");
+    toast.success("คัดลอกโค้ดเรียบร้อยแล้ว!");
     setTimeout(() => setCopiedSnippet(false), 2500);
   };
 
   return (
     <div className="flex h-screen w-full bg-[#F8FAF9] font-sans antialiased text-[#1A231E] overflow-hidden">
-      {/* Toast Notification */}
-      {toastMsg && (
-        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 bg-[#1A231E] text-white rounded-2xl shadow-xl text-xs font-medium animate-in fade-in slide-in-from-top-2">
-          <Check className="w-4 h-4 text-emerald-400" />
-          <span>{toastMsg}</span>
-        </div>
-      )}
 
       {/* Main Sidebar */}
       <Sidebar
@@ -849,31 +972,9 @@ function WidgetCustomizerInner() {
                   className="w-4 h-4 text-[#4E6955] accent-[#4E6955] rounded cursor-pointer"
                 />
               </div>
-
-              <div className="flex items-center justify-between p-3 bg-[#FAFBF9] border border-[#E2E8E3] rounded-xl">
-                <div>
-                  <h4 className="text-xs font-semibold text-[#1A231E]">
-                    แสดงแหล่งที่มาของข้อมูล (Show Sources)
-                  </h4>
-                  <p className="text-[11px] text-[#6B7D72]">
-                    แสดงป้ายชื่อเอกสารอ้างอิงและระดับความเกี่ยวข้องใต้คำตอบของบอท
-                  </p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={config.showSources ?? false}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      showSources: e.target.checked,
-                    }))
-                  }
-                  className="w-4 h-4 text-[#4E6955] accent-[#4E6955] rounded cursor-pointer"
-                />
-              </div>
             </div>
 
-            {/* 7. EMBED CODE GENERATOR */}
+            {/* 7. EMBED CODE GENERATOR WITH SHADCN TABS */}
             <div className="space-y-3 pt-4 border-t border-[#F0F2EF]">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold uppercase tracking-wider text-[#385241] flex items-center gap-2">
@@ -882,8 +983,8 @@ function WidgetCustomizerInner() {
                 </label>
                 <button
                   type="button"
-                  onClick={() => copyToClipboard(embedSnippet)}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#4E6955] hover:underline"
+                  onClick={() => copyToClipboard(activeEmbedCode)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#4E6955] hover:underline cursor-pointer"
                 >
                   {copiedSnippet ? (
                     <>
@@ -899,11 +1000,34 @@ function WidgetCustomizerInner() {
                 </button>
               </div>
 
-              <div className="p-3 bg-[#1A231E] rounded-xl text-emerald-300 font-mono text-[11px] overflow-x-auto select-all leading-relaxed">
-                <pre>{embedSnippet}</pre>
-              </div>
+              <Tabs value={embedTab} onValueChange={(v) => setEmbedTab(v as "html" | "react" | "curl")}>
+                <TabsList className="w-full grid grid-cols-3">
+                  <TabsTrigger value="html">HTML &lt;script&gt;</TabsTrigger>
+                  <TabsTrigger value="react">React / Next.js</TabsTrigger>
+                  <TabsTrigger value="curl">API cURL</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="html">
+                  <div className="p-3 bg-[#1A231E] rounded-xl text-emerald-300 font-mono text-[11px] overflow-x-auto select-all leading-relaxed">
+                    <pre>{embedSnippet}</pre>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="react">
+                  <div className="p-3 bg-[#1A231E] rounded-xl text-emerald-300 font-mono text-[11px] overflow-x-auto select-all leading-relaxed">
+                    <pre>{reactSnippet}</pre>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="curl">
+                  <div className="p-3 bg-[#1A231E] rounded-xl text-emerald-300 font-mono text-[11px] overflow-x-auto select-all leading-relaxed">
+                    <pre>{curlSnippet}</pre>
+                  </div>
+                </TabsContent>
+              </Tabs>
+
               <p className="text-[11px] text-[#6B7D72]">
-                นำโค้ดบรรทัดนี้ไปวางก่อนแท็ก <code className="bg-[#EBF3EE] px-1 py-0.5 rounded text-[#385241]">&lt;/body&gt;</code> ในเว็บไซต์ของคุณ (WordPress, Shopify, Webflow หรือ React)
+                นำโค้ดไปวางในเว็บไซต์ของคุณ (HTML, WordPress, Shopify, Webflow หรือ Next.js) เพื่อเปิดใช้งาน NongGuide AI ทันที
               </p>
             </div>
           </div>
@@ -969,11 +1093,11 @@ function WidgetCustomizerInner() {
                   {/* Chat Window Frame - Stacked ABOVE the launcher bubble, shrinks to fit the preview */}
                   {previewOpen && (
                     <div
-                      className="pointer-events-auto w-[340px] sm:w-[365px] max-w-full flex-1 min-h-0 max-h-[470px] bg-[#F8FAF9] rounded-2xl shadow-2xl border border-slate-200/90 flex flex-col overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200"
+                      className="pointer-events-auto w-full sm:w-[385px] max-w-full flex-1 min-h-0 max-h-[490px] bg-[#F8FAF9] rounded-2xl shadow-2xl border border-slate-200/90 flex flex-col overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200"
                     >
                       {/* Header */}
                       <div
-                        className="p-3.5 sm:p-4 text-white flex items-center justify-between shrink-0 shadow-xs"
+                        className="p-3.5 sm:p-4 text-white flex items-center justify-between gap-2 shrink-0 shadow-xs"
                         style={{ backgroundColor: config.primaryColor }}
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
@@ -990,29 +1114,41 @@ function WidgetCustomizerInner() {
                             </div>
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setPreviewOpen(false)}
-                          className="p-1 rounded-lg hover:bg-white/20 text-white transition cursor-pointer shrink-0"
-                          title="ปิดหน้าต่างแชท"
-                        >
-                          ✕
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={handleClearPreviewChat}
+                            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition cursor-pointer"
+                            title="เริ่มแชทใหม่ (Clear chat)"
+                            aria-label="Clear chat"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewOpen(false)}
+                            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition cursor-pointer leading-none text-xs"
+                            title="ปิดหน้าต่างแชท"
+                            aria-label="Close chat"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </div>
 
                       {/* Messages Stream */}
-                      <div className="flex-1 min-h-0 p-3.5 overflow-y-auto space-y-2.5 bg-[#F8FAF9]">
+                      <div className="flex-1 min-h-0 p-3.5 overflow-y-auto space-y-2.5 bg-[#F8FAF9] widget-scrollbar">
                         {previewMessages.map((msg, index) => (
                           <div
                             key={index}
-                            className={`flex flex-col ${
+                            className={`flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-200 ${
                               msg.sender === "user"
                                 ? "items-end"
                                 : "items-start"
                             }`}
                           >
                             <div
-                              className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${
+                              className={`group relative max-w-[86%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${
                                 msg.sender === "user"
                                   ? "text-white rounded-br-xs shadow-sm font-medium"
                                   : msg.sender === "error"
@@ -1025,16 +1161,32 @@ function WidgetCustomizerInner() {
                                   : {}
                               }
                             >
-                              <p className="whitespace-pre-wrap">{msg.text}</p>
-                              {config.showSources && msg.sources && msg.sources.length > 0 && (
-                                <div className="mt-2 pt-2 border-t border-[#E2E8E3] flex flex-wrap gap-1 items-center">
-                                  <span className="text-[10px] font-semibold text-slate-500">แหล่งข้อมูล:</span>
-                                  {msg.sources.map((s, idx) => (
-                                    <span key={idx} className="inline-block px-1.5 py-0.5 rounded text-[9.5px] bg-slate-100 text-slate-600">
-                                      📄 {s.title} ({s.relevance}%)
-                                    </span>
-                                  ))}
-                                </div>
+                              {msg.sender === "bot" ? (
+                                <>
+                                  {renderAssistantMarkdown(msg.text)}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyPreviewMessage(msg.text, index)}
+                                    title="คัดลอกข้อความ"
+                                    aria-label="Copy reply"
+                                    className={`absolute top-1.5 right-1.5 inline-flex items-center gap-1 px-1.5 py-1 rounded-md border text-[10px] transition shadow-2xs cursor-pointer ${
+                                      copiedMsgIdx === index
+                                        ? "opacity-100 bg-emerald-50 border-emerald-200 text-emerald-700"
+                                        : "opacity-0 group-hover:opacity-100 bg-white/95 border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    {copiedMsgIdx === index ? (
+                                      <>
+                                        <Check className="w-2.5 h-2.5" />
+                                        <span>คัดลอกแล้ว</span>
+                                      </>
+                                    ) : (
+                                      <Copy className="w-2.5 h-2.5" />
+                                    )}
+                                  </button>
+                                </>
+                              ) : (
+                                <p className="whitespace-pre-wrap">{msg.text}</p>
                               )}
                             </div>
                           </div>
@@ -1063,7 +1215,16 @@ function WidgetCustomizerInner() {
 
                       {/* Quick Prompt Chips */}
                       {config.quickPrompts.length > 0 && (
-                        <div className="px-3 py-2 bg-[#F1F5F3] border-t border-[#E5E9E7] flex gap-1.5 overflow-x-auto shrink-0 scrollbar-none">
+                        <div
+                          ref={quickPromptsRowRef}
+                          onWheel={(e) => {
+                            if (quickPromptsRowRef.current && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                              e.preventDefault();
+                              quickPromptsRowRef.current.scrollLeft += e.deltaY;
+                            }
+                          }}
+                          className="px-3 py-2 bg-[#F1F5F3] border-t border-[#E5E9E7] flex gap-1.5 overflow-x-auto shrink-0 no-scrollbar scroll-smooth"
+                        >
                           {config.quickPrompts.map((p, pIdx) => (
                             <button
                               key={pIdx}

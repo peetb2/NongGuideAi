@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
   title: "NongGuide AI — AI Tourist Guide & Travel Specialist Chatbot",
@@ -15,6 +16,7 @@ export default function RootLayout({
     <html lang="en" className="scroll-smooth">
       <body className="antialiased text-charcoal selection:bg-sage-300 selection:text-charcoal">
         {children}
+        <Toaster />
       </body>
     </html>
   );

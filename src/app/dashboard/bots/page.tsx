@@ -5,6 +5,17 @@ import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Header from "@/components/dashboard/Header";
 import { Skeleton, SkeletonDemo } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 import { BotItem } from "@/lib/bot-store";
 import {
   Bot,
@@ -68,9 +79,10 @@ export default function BotListPage() {
   // Syncing state
   const [syncingBotId, setSyncingBotId] = useState<string | null>(null);
 
-  // Delete Bot Confirmation State
+  // Delete Bot & Document Confirmation State
   const [botToDelete, setBotToDelete] = useState<BotItem | null>(null);
   const [isDeletingBot, setIsDeletingBot] = useState(false);
+  const [docToDelete, setDocToDelete] = useState<{ id: string; title: string } | null>(null);
 
   // Modal Upload Form State (Files vs Website URL)
   const [modalUploadMode, setModalUploadMode] = useState<"files" | "crawl">("files");
@@ -134,10 +146,16 @@ export default function BotListPage() {
   }, []);
 
   const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3000);
+    const isError =
+      msg.includes("ไม่สำเร็จ") ||
+      msg.includes("ผิดพลาด") ||
+      msg.includes("ไม่สามารถ") ||
+      msg.includes("กรุณา");
+    if (isError) {
+      toast.error(msg);
+    } else {
+      toast.success(msg);
+    }
   };
 
   // Toggle Bot Active/Paused
@@ -805,63 +823,101 @@ export default function BotListPage() {
         </div>
       </main>
 
-      {/* DELETE BOT CONFIRMATION MODAL */}
-      {botToDelete && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs"
-          onClick={() => !isDeletingBot && setBotToDelete(null)}
-        >
-          <div
-            className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-borderLight p-6 space-y-5"
-            onClick={(e) => e.stopPropagation()}
-          >
+      {/* DELETE BOT CONFIRMATION ALERTDIALOG */}
+      <AlertDialog
+        open={Boolean(botToDelete)}
+        onOpenChange={(open) => {
+          if (!open && !isDeletingBot) setBotToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
                 <Trash2 className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-base font-bold text-textMain">ลบบอทนี้ใช่หรือไม่?</h3>
-                <p className="text-xs text-textMuted mt-1 leading-relaxed">
-                  คุณกำลังจะลบ <span className="font-semibold text-textMain break-words">"{botToDelete.name}"</span>
-                </p>
+                <AlertDialogTitle>ลบบอทนี้ใช่หรือไม่?</AlertDialogTitle>
+                <AlertDialogDescription className="mt-1">
+                  คุณกำลังจะลบ{" "}
+                  <span className="font-semibold text-textMain break-words">
+                    &quot;{botToDelete?.name}&quot;
+                  </span>
+                </AlertDialogDescription>
               </div>
             </div>
+          </AlertDialogHeader>
 
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-[11.5px] text-rose-800 leading-relaxed">
-              การดำเนินการนี้ไม่สามารถย้อนกลับได้ ข้อมูลต่อไปนี้จะถูกลบถาวร:
-              <ul className="list-disc pl-5 mt-1 space-y-0.5">
-                <li>เอกสารในคลังความรู้ ({botToDelete.knowledgeCount || 0} เอกสาร)</li>
-                <li>API Keys ทั้งหมดของบอทนี้ (วิดเจ็ตบนเว็บไซต์จะหยุดทำงาน)</li>
-                <li>ประวัติการใช้งานและสถิติ</li>
-              </ul>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setBotToDelete(null)}
-                disabled={isDeletingBot}
-                className="px-4 py-2 rounded-xl border border-borderLight bg-white text-xs font-semibold text-textMain hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
-              >
-                ยกเลิก
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDeleteBot}
-                disabled={isDeletingBot}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs transition cursor-pointer disabled:opacity-60"
-              >
-                {isDeletingBot ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="w-3.5 h-3.5" />
-                )}
-                <span>{isDeletingBot ? "กำลังลบ..." : "ลบบอทถาวร"}</span>
-              </button>
-            </div>
+          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-[11.5px] text-rose-800 leading-relaxed">
+            การดำเนินการนี้ไม่สามารถย้อนกลับได้ ข้อมูลต่อไปนี้จะถูกลบถาวร:
+            <ul className="list-disc pl-5 mt-1 space-y-0.5">
+              <li>เอกสารในคลังความรู้ ({botToDelete?.knowledgeCount || 0} เอกสาร)</li>
+              <li>API Keys ทั้งหมดของบอทนี้ (วิดเจ็ตบนเว็บไซต์จะหยุดทำงาน)</li>
+              <li>ประวัติการใช้งานและสถิติ</li>
+            </ul>
           </div>
-        </div>
-      )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingBot}>ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleConfirmDeleteBot();
+              }}
+              disabled={isDeletingBot}
+              className="inline-flex items-center gap-2"
+            >
+              {isDeletingBot ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="w-3.5 h-3.5" />
+              )}
+              <span>{isDeletingBot ? "กำลังลบ..." : "ลบบอทถาวร"}</span>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* DELETE DOCUMENT CONFIRMATION ALERTDIALOG */}
+      <AlertDialog
+        open={Boolean(docToDelete)}
+        onOpenChange={(open) => {
+          if (!open) setDocToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <AlertDialogTitle>ลบเอกสารออกจากฐานความรู้?</AlertDialogTitle>
+                <AlertDialogDescription className="mt-1">
+                  คุณกำลังจะลบเอกสาร{" "}
+                  <span className="font-semibold text-textMain break-words">
+                    &quot;{docToDelete?.title}&quot;
+                  </span>{" "}
+                  รวมถึงเวกเตอร์ทั้งหมดของเอกสารนี้ บอทจะไม่ใช้ข้อมูลจากเอกสารนี้ในการตอบคำถามอีกต่อไป
+                </AlertDialogDescription>
+              </div>
+            </div>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (docToDelete) {
+                  handleDeleteDocument(docToDelete.id, docToDelete.title);
+                  setDocToDelete(null);
+                }
+              }}
+            >
+              ลบเอกสาร
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* REAL KNOWLEDGE BASE MANAGEMENT MODAL */}
       {managingBot && (
@@ -1083,7 +1139,7 @@ export default function BotListPage() {
 
                             <button
                               type="button"
-                              onClick={() => handleDeleteDocument(doc.id, doc.title)}
+                              onClick={() => setDocToDelete({ id: doc.id, title: doc.title })}
                               className="text-slate-400 hover:text-rose-600 p-2 rounded-lg transition cursor-pointer"
                               title="ลบเอกสารและเวกเตอร์"
                             >

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import { addStoredBot, BotItem } from "@/lib/bot-store";
+import { InfoTooltip } from "@/components/ui/tooltip";
+import { toast } from "sonner";
 import {
   FileText,
   Trash2,
@@ -38,6 +40,7 @@ export default function NewBotPage() {
   const [formBotDesc, setFormBotDesc] = useState("");
   const [formBotModel, setFormBotModel] = useState("gemini-3.5-flash-lite");
   const [formBotTone, setFormBotTone] = useState("");
+  const [formAllowedDomains, setFormAllowedDomains] = useState("*");
   
   // Real Uploaded Files (empty by default, no mocks!)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
@@ -64,10 +67,18 @@ export default function NewBotPage() {
   const [directDocContent, setDirectDocContent] = useState("");
 
   const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3200);
+    const isError =
+      msg.includes("ไม่สำเร็จ") ||
+      msg.includes("ผิดพลาด") ||
+      msg.includes("ไม่สามารถ") ||
+      msg.includes("กรุณา") ||
+      msg.includes("ไม่พบ") ||
+      msg.includes("ว่างเปล่า");
+    if (isError) {
+      toast.error(msg);
+    } else {
+      toast.success(msg);
+    }
   };
 
   const removeUploadedFile = (index: number) => {
@@ -281,7 +292,15 @@ export default function NewBotPage() {
           name: formBotName.trim(),
           systemPrompt: formBotTone.trim() || formBotDesc.trim() || "คุณคือผู้ช่วย AI อัจฉริยะสำหรับบริการลูกค้าและตอบคำถาม",
           model: formBotModel,
-          allowedDomains: ["*"],
+          allowedDomains: formAllowedDomains
+            .split(",")
+            .map((d) => d.trim())
+            .filter(Boolean).length > 0
+            ? formAllowedDomains
+                .split(",")
+                .map((d) => d.trim())
+                .filter(Boolean)
+            : ["*"],
           websiteUrl: effectiveWebsiteUrl,
           lastCrawledAt: effectiveWebsiteUrl && hasWebsiteDocs ? new Date() : null,
           isActive: true,
@@ -470,8 +489,9 @@ export default function NewBotPage() {
 
               {/* เลือกโมเดล AI */}
               <div>
-                <label className="block text-xs font-semibold text-textMain mb-2 font-mono uppercase tracking-wider">
-                  เลือกโมเดล AI (AI Model)
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-textMain mb-2 font-mono uppercase tracking-wider">
+                  <span>เลือกโมเดล AI (AI Model)</span>
+                  <InfoTooltip content="เลือกโมเดล Gemini สำหรับตอบคำถาม: Flash Lite เร็วและประหยัดที่สุด เหมาะกับแชทลูกค้า, 3.8 Flash และ 2.5 Pro เหมาะกับงานวางแผนทริปที่ซับซ้อน" />
                 </label>
                 <div className="relative">
                   <select
@@ -811,8 +831,9 @@ export default function NewBotPage() {
 
               {/* ตั้งค่า Personality / Tone */}
               <div>
-                <label className="block text-xs font-semibold text-textMain mb-2 font-mono uppercase tracking-wider">
-                  คำแนะนำและบุคลิกของบอท (System Prompt / Tone)
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-textMain mb-2 font-mono uppercase tracking-wider">
+                  <span>คำแนะนำและบุคลิกของบอท (System Prompt / Tone)</span>
+                  <InfoTooltip content="กำหนดบทบาท น้ำเสียง และกฎเฉพาะของธุรกิจคุณ เช่น เวลาเช็คอิน-เช็คเอาต์ นโยบายการจอง หรือช่องทางติดต่อ โดยจะทำงานร่วมกับความเชี่ยวชาญด้านการท่องเที่ยวของ NongGuide AI" />
                 </label>
                 <textarea
                   rows={3}
@@ -820,6 +841,21 @@ export default function NewBotPage() {
                   onChange={(e) => setFormBotTone(e.target.value)}
                   placeholder="เช่น คุณคือผู้ช่วยบริการลูกค้าอย่างสุภาพ ตอบคำถามโดยอ้างอิงจากข้อมูลความรู้ที่ให้ไว้เป็นหลัก หากไม่แน่ใจให้ตอบตามจริงและแนะนำให้ติดต่อทีมงาน"
                   className="w-full bg-white border border-borderLight rounded-xl p-4 text-xs text-textMain placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4E6955]/20 focus:border-[#4E6955] transition shadow-xs resize-none"
+                />
+              </div>
+
+              {/* Allowed Domains */}
+              <div>
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-textMain mb-2 font-mono uppercase tracking-wider">
+                  <span>โดเมนที่อนุญาต (Allowed Domains)</span>
+                  <InfoTooltip content="ระบุโดเมนเว็บไซต์ที่อนุญาตให้ฝังวิดเจ็ตนี้ (คั่นด้วยลูกน้ำ) หรือใส่ * เพื่ออนุญาตทุกเว็บไซต์ โดยหน้า Live Preview ในแดชบอร์ดจะใช้งานได้เสมอ" />
+                </label>
+                <input
+                  type="text"
+                  value={formAllowedDomains}
+                  onChange={(e) => setFormAllowedDomains(e.target.value)}
+                  placeholder="* หรือ example.com, www.example.com"
+                  className="w-full bg-white border border-borderLight rounded-xl px-4 py-3 text-xs font-mono text-textMain placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4E6955]/20 focus:border-[#4E6955] transition shadow-xs"
                 />
               </div>
 

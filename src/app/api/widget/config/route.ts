@@ -88,7 +88,6 @@ export async function GET(req: NextRequest) {
       "ติดต่อเจ้าหน้าที่",
     ],
     enableStreaming: parsedConfig?.enableStreaming !== false,
-    showSources: Boolean(parsedConfig?.showSources === true),
     themePreset: parsedConfig?.themePreset || "sage",
   };
 

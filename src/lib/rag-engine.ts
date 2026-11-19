@@ -412,7 +412,8 @@ ACCURACY RULES (very important)
 - Use the "Conversation so far" section to understand follow-up questions (for example "what about with kids?" or "and day 2?") and stay consistent with what you said earlier.
 
 FORMATTING RULE
-Do NOT use markdown bold asterisks (**) or any asterisks (*) for emphasis, bullets, or headings. Write clean plain text. Use simple numbered lines or dashes (-) for lists, and short paragraphs that read well in a small chat window.`;
+- Keep replies clean, conversational, and easy to scan in a small chat window using short paragraphs, simple dashes (-) for bullet lists, and **bold** sparingly for key names or prices.
+- NEVER append document citations, bracketed references like [Document 1], [Source], "(Show Sources)", or "แหล่งข้อมูล:" tags to your replies.`;
 
   const owner = (ownerPrompt || "").trim();
   return owner
